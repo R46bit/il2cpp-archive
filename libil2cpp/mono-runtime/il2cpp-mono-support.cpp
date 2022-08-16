@@ -2,6 +2,7 @@
 
 #include <cassert>
 
+#include "il2cpp-tokentype.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
 
@@ -10,6 +11,7 @@
 
 #include "../libmono/mono-api.h"
 #include "utils/dynamic_array.h"
+#include "utils/StringUtils.h"
 #if IL2CPP_ENABLE_NATIVE_STACKTRACES
 #include "vm-utils/NativeSymbol.h"
 #endif // IL2CPP_ENABLE_NATIVE_STACKTRACES
@@ -18,17 +20,19 @@
 #include <string>
 #include "utils/Il2CppHashMap.h"
 #include "utils/HashUtils.h"
+#include "utils/PathUtils.h"
+#include "utils/StringUtils.h"
 #include "os/Mutex.h"
 
 extern const Il2CppCodeRegistration g_CodeRegistration IL2CPP_ATTRIBUTE_WEAK;
-extern const Il2CppMethodSpec g_Il2CppMethodSpecTable[] IL2CPP_ATTRIBUTE_WEAK;
+extern "C" const Il2CppMethodSpec g_Il2CppMethodSpecTable[] IL2CPP_ATTRIBUTE_WEAK;
 #if IL2CPP_ENABLE_NATIVE_STACKTRACES
 #endif // IL2CPP_ENABLE_NATIVE_STACKTRACES
 
 // Mono-specific metadata emitted by IL2CPP
-extern void** const g_MetadataUsages[] IL2CPP_ATTRIBUTE_WEAK;
-extern const MonoGenericInstMetadata* const g_MonoGenericInstMetadataTable[] IL2CPP_ATTRIBUTE_WEAK;
-extern const Il2CppCodeGenOptions s_Il2CppCodeGenOptions IL2CPP_ATTRIBUTE_WEAK;
+extern "C" void** const g_MetadataUsages[] IL2CPP_ATTRIBUTE_WEAK;
+extern "C" const MonoGenericInstMetadata* const g_MonoGenericInstMetadataTable[] IL2CPP_ATTRIBUTE_WEAK;
+extern "C" const Il2CppCodeGenOptions s_Il2CppCodeGenOptions IL2CPP_ATTRIBUTE_WEAK;
 
 extern const int g_Il2CppInteropDataCount IL2CPP_ATTRIBUTE_WEAK;
 extern Il2CppInteropData g_Il2CppInteropData[] IL2CPP_ATTRIBUTE_WEAK;
@@ -84,11 +88,38 @@ static MonoGenericInst* GetSharedGenericInst(MonoGenericInst* inst)
         }
         else if (mono_unity_type_is_enum_type(type) && s_Il2CppCodeGenOptions.enablePrimitiveValueTypeGenericSharing)
         {
-            types.push_back(mono_class_get_type(mono_unity_type_get_element_class(type)));
-        }
-        else if (mono_unity_type_is_boolean(type) && s_Il2CppCodeGenOptions.enablePrimitiveValueTypeGenericSharing)
-        {
-            types.push_back(mono_class_get_type(mono_unity_defaults_get_byte_class()));
+            MonoType* underlyingType = mono_type_get_underlying_type(type);
+            switch ((Il2CppTypeEnum)underlyingType->type)
+            {
+                case IL2CPP_TYPE_I1:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "SByteEnum"));
+                    break;
+                case IL2CPP_TYPE_I2:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "Int16Enum"));
+                    break;
+                case IL2CPP_TYPE_I4:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "Int32Enum"));
+                    break;
+                case IL2CPP_TYPE_I8:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "Int64Enum"));
+                    break;
+                case IL2CPP_TYPE_U1:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "ByteEnum"));
+                    break;
+                case IL2CPP_TYPE_U2:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "UInt16Enum"));
+                    break;
+                case IL2CPP_TYPE_U4:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "UInt32Enum"));
+                    break;
+                case IL2CPP_TYPE_U8:
+                    type = mono_class_get_type(mono_class_from_name(mono_get_corlib(), "System", "UInt64Enum"));
+                    break;
+                default:
+                    IL2CPP_ASSERT(0 && "Invalid enum underlying type");
+                    break;
+            }
+            types.push_back(type);
         }
         else
         {
@@ -217,6 +248,24 @@ static void* MarshalInvokerMethod(Il2CppMethodPointer func, const MonoMethod* me
     return (MonoObject*)params[1];
 }
 
+Il2CppCodeGenModule* InitializeCodeGenHandle(MonoImage* image)
+{
+    if (image->il2cpp_codegen_handle)
+        return (Il2CppCodeGenModule*)image->il2cpp_codegen_handle;
+
+    for (uint32_t codeGenModuleIndex = 0; codeGenModuleIndex < g_CodeRegistration.codeGenModulesCount; ++codeGenModuleIndex)
+    {
+        std::string name = il2cpp::utils::PathUtils::PathNoExtension(g_CodeRegistration.codeGenModules[codeGenModuleIndex]->moduleName);
+        if (strcmp(image->assembly_name, name.c_str()) == 0)
+        {
+            image->il2cpp_codegen_handle = (void*)g_CodeRegistration.codeGenModules[codeGenModuleIndex];
+            return (Il2CppCodeGenModule*)image->il2cpp_codegen_handle;
+        }
+    }
+
+    return NULL;
+}
+
 static il2cpp::os::FastMutex s_MonoMethodFunctionPointerInitializationMutex;
 
 void il2cpp_mono_method_initialize_function_pointers(MonoMethod* method, MonoError* error)
@@ -267,33 +316,36 @@ void il2cpp_mono_method_initialize_function_pointers(MonoMethod* method, MonoErr
     }
     else
     {
-        uint64_t hash = mono_unity_method_get_hash(method, true);
-        const MonoMethodInfoMetadata *methodInfo = mono::vm::MetadataCache::GetMonoMethodInfoFromMethodHash(hash);
+        InitializeCodeGenHandle(method->klass->image);
+        Il2CppCodeGenModule* codeGenModule = (Il2CppCodeGenModule*)method->klass->image->il2cpp_codegen_handle;
 
-        if (methodInfo)
+        if (!codeGenModule)
         {
-            invokerIndex = methodInfo->invoker_index;
-            methodPointerIndex = methodInfo->method_pointer_index;
+            // Throw a missing method exception if we did not convert it. Once we know this code works for all runtime invoke cases,
+            // we should throw this exception more often. Until then, we will leave theassert below when we don't find a method.
+            mono_error_set_method_load(error, mono_unity_method_get_class(method), mono_unity_method_get_name(method), NULL, "This method was not converted ahead-of-time by IL2CPP.");
+            return;
         }
         else if (strcmp(mono_unity_method_get_name(method), "PtrToStructure") == 0 || strcmp(mono_unity_method_get_name(method), "StructureToPtr") == 0)
         {
             mono_unity_method_set_invoke_pointer(method, (void*)&MarshalInvokerMethod);
             return;
         }
-        else
-        {
-            // Throw a missing method exception if we did not convert it. Once we know this code works for all runtime invoke cases,
-            // we should throw this exception more often. Until then, we will leave theassert below when we don't find a method.
-            mono_error_set_method_load(error, mono_unity_method_get_class(method), mono_unity_method_get_name(method), "This method was not converted ahead-of-time by IL2CPP.");
-            return;
-        }
+
+        invokerIndex = method->token & 0x00FFFFFF;
+        methodPointerIndex = method->token & 0x00FFFFFF;
+
+        invokerIndex = method->token & 0x00FFFFFF;
+        assert((uint32_t)invokerIndex <= codeGenModule->methodPointerCount);
+        invokerIndex = codeGenModule->invokerIndices[invokerIndex - 1];
+        methodPointerIndex = method->token & 0x00FFFFFF;
 
         assert(invokerIndex != -1 && "The method does not have an invoker, is it a generic method?");
         assert((uint32_t)invokerIndex < g_CodeRegistration.invokerPointersCount);
         mono_unity_method_set_invoke_pointer(method, (void*)g_CodeRegistration.invokerPointers[invokerIndex]);
 
-        assert((uint32_t)methodPointerIndex < g_CodeRegistration.methodPointersCount);
-        mono_unity_method_set_method_pointer(method, (void*)g_CodeRegistration.methodPointers[methodPointerIndex]);
+        assert((uint32_t)methodPointerIndex <= codeGenModule->methodPointerCount);
+        mono_unity_method_set_method_pointer(method, (void*)codeGenModule->methodPointers[methodPointerIndex - 1]);
     }
 }
 
@@ -382,7 +434,7 @@ void il2cpp_mono_get_invoke_data(MonoMethod* method, void* obj, VirtualInvokeDat
     MonoError error;
     il2cpp_mono_method_initialize_function_pointers(target_method, &error);
     if (!il2cpp_mono_error_ok(&error))
-        mono_error_raise_exception(&error);
+        mono_error_raise_exception_deprecated(&error);
     invokeData->methodPtr = (Il2CppMethodPointer)mono_unity_method_get_method_pointer(target_method);
     invokeData->method = target_method;
 }
@@ -394,7 +446,7 @@ void il2cpp_mono_get_virtual_invoke_data(MonoMethod* method, void* obj, VirtualI
     MonoError error;
     il2cpp_mono_method_initialize_function_pointers(target_method, &error);
     if (!il2cpp_mono_error_ok(&error))
-        mono_error_raise_exception(&error);
+        mono_error_raise_exception_deprecated(&error);
     invokeData->methodPtr = (Il2CppMethodPointer)mono_unity_method_get_method_pointer(target_method);
     invokeData->method = target_method;
 }
@@ -406,7 +458,7 @@ void il2cpp_mono_get_interface_invoke_data(MonoMethod* method, void* obj, Virtua
     MonoError error;
     il2cpp_mono_method_initialize_function_pointers(target_method, &error);
     if (!il2cpp_mono_error_ok(&error))
-        mono_error_raise_exception(&error);
+        mono_error_raise_exception_deprecated(&error);
     invokeData->methodPtr = (Il2CppMethodPointer)mono_unity_method_get_method_pointer(target_method);
     invokeData->method = target_method;
 }
@@ -464,12 +516,46 @@ static void* LookupMetadataFromRGCTX(const MonoRGCTXDefinition* definition, bool
     return NULL;
 }
 
-void* LookupMetadataFromHash(uint64_t hash, Il2CppRGCTXDataType rgctxType, int rgctxIndex, bool useSharedVersion, MonoGenericContext* context, MonoGenericContainer* genericContainer)
+static int CompareIl2CppTokenRangePair(const void* pkey, const void* pelem)
 {
-    const RuntimeGenericContextInfo* rgctxInfo = mono::vm::MetadataCache::GetRGCTXInfoFromHash(hash);
-    if (rgctxInfo)
+    return (int)(((Il2CppTokenRangePair*)pkey)->token - ((Il2CppTokenRangePair*)pelem)->token);
+}
+
+typedef struct
+{
+    int32_t count;
+    const MonoRGCTXDefinition* items;
+} RGCTXCollection;
+
+static RGCTXCollection GetRGCTXs(MonoImage* image, uint32_t token)
+{
+    InitializeCodeGenHandle(image);
+    Il2CppCodeGenModule* codegenModule = (Il2CppCodeGenModule*)image->il2cpp_codegen_handle;
+    RGCTXCollection collection = { 0, NULL };
+    if (codegenModule->rgctxRangesCount == 0)
+        return collection;
+
+    Il2CppTokenRangePair key;
+    memset(&key, 0, sizeof(Il2CppTokenRangePair));
+    key.token = token;
+
+    const Il2CppTokenRangePair* res = (const Il2CppTokenRangePair*)bsearch(&key, codegenModule->rgctxRanges, codegenModule->rgctxRangesCount, sizeof(Il2CppTokenRangePair), CompareIl2CppTokenRangePair);
+
+    if (res == NULL)
+        return collection;
+
+    collection.count = res->range.length;
+    collection.items = codegenModule->rgctxs + res->range.start;
+
+    return collection;
+}
+
+void* LookupMetadataFromHash(MonoImage* image, uint32_t token, Il2CppRGCTXDataType rgctxType, int rgctxIndex, bool useSharedVersion, MonoGenericContext* context, MonoGenericContainer* genericContainer)
+{
+    RGCTXCollection collection = GetRGCTXs(image, token);
+    if (rgctxIndex >= 0 && rgctxIndex < collection.count)
     {
-        const MonoRGCTXDefinition* definition = mono::vm::MetadataCache::GetMonoRGCTXDefinition(rgctxInfo->rgctxStart + rgctxIndex);
+        const MonoRGCTXDefinition* definition = collection.items + rgctxIndex;
         if (definition->type == rgctxType)
             return LookupMetadataFromRGCTX(definition, useSharedVersion, context, genericContainer);
     }
@@ -479,15 +565,13 @@ void* LookupMetadataFromHash(uint64_t hash, Il2CppRGCTXDataType rgctxType, int r
 
 void* il2cpp_mono_class_rgctx(MonoClass* klass, Il2CppRGCTXDataType rgctxType, int rgctxIndex, bool useSharedVersion)
 {
-    uint64_t hash = mono_unity_type_get_hash(mono_class_get_type(klass), false);
-    return LookupMetadataFromHash(hash, rgctxType, rgctxIndex, useSharedVersion,
+    return LookupMetadataFromHash(klass->image, klass->type_token, rgctxType, rgctxIndex, useSharedVersion,
         mono_class_get_context(klass), mono_class_get_generic_container(mono_unity_class_get_generic_definition(klass)));
 }
 
 void* il2cpp_mono_method_rgctx(MonoMethod* method, Il2CppRGCTXDataType rgctxType, int rgctxIndex, bool useSharedVersion)
 {
-    uint64_t hash = mono_unity_method_get_hash(method, false);
-    return LookupMetadataFromHash(hash, rgctxType, rgctxIndex, useSharedVersion,
+    return LookupMetadataFromHash(method->klass->image, method->token, rgctxType, rgctxIndex, useSharedVersion,
         mono_method_get_context(method), mono_method_get_generic_container(mono_unity_method_get_generic_definition(method)));
 }
 
@@ -560,6 +644,23 @@ MonoMethod* MethodFromIndex(MethodIndex index)
 {
     const MonoMetadataToken* method = &mono::vm::MetadataCache::GetMonoMethodMetadataFromIndex(index)->metadataToken;
     return mono_get_method(mono_assembly_get_image(il2cpp_mono_assembly_from_index(method->assemblyIndex)), method->token, NULL);
+}
+
+MonoMethod* MethodFromToken(uint32_t token, Il2CppMethodPointer methodPtr)
+{
+    uint32_t rid = 0x00FFFFFF & token;
+    for (uint32_t codeGenModuleIndex = 0; codeGenModuleIndex < g_CodeRegistration.codeGenModulesCount; ++codeGenModuleIndex)
+    {
+        const Il2CppCodeGenModule* codeGenModule = g_CodeRegistration.codeGenModules[codeGenModuleIndex];
+        if (rid <= codeGenModule->methodPointerCount && codeGenModule->methodPointers[rid - 1] == methodPtr)
+        {
+            MonoAssembly* assembly = il2cpp_mono_assembly_from_name(il2cpp::utils::PathUtils::PathNoExtension(codeGenModule->moduleName).c_str());
+
+            return mono_get_method(mono_assembly_get_image(assembly), token, NULL);
+        }
+    }
+
+    return NULL;
 }
 
 static std::vector<MonoType*> GenericArgumentsFromInst(const MonoGenericInstMetadata *inst)
@@ -743,18 +844,27 @@ MonoArray* MonoArrayNew(MonoClass* elementType, uintptr_t length)
 #if IL2CPP_ENABLE_NATIVE_STACKTRACES
 void RegisterAllManagedMethods()
 {
-    uint32_t numberOfMethods = g_CodeRegistration.methodPointersCount;
+    uint32_t numberOfMethods = 0;
     uint32_t numberOfGenericMethods = g_CodeRegistration.genericMethodPointersCount;
+
+    for (uint32_t codeGenModuleIndex = 0; codeGenModuleIndex < g_CodeRegistration.codeGenModulesCount; ++codeGenModuleIndex)
+    {
+        numberOfMethods += g_CodeRegistration.codeGenModules[codeGenModuleIndex]->methodPointerCount;
+    }
 
     std::vector<MethodDefinitionKey> managedMethods(numberOfMethods + numberOfGenericMethods);
 
-    for (uint32_t i = 0; i < numberOfMethods; ++i)
+    for (uint32_t codeGenModuleIndex = 0; codeGenModuleIndex < g_CodeRegistration.codeGenModulesCount; ++codeGenModuleIndex)
     {
-        MethodDefinitionKey currentMethod;
-        currentMethod.methodIndex = mono::vm::MetadataCache::GetMethodIndex(i);
-        currentMethod.method = g_CodeRegistration.methodPointers[i];
-        currentMethod.isGeneric = false;
-        managedMethods.push_back(currentMethod);
+        const Il2CppCodeGenModule* codeGenModule = g_CodeRegistration.codeGenModules[codeGenModuleIndex];
+        for (uint32_t i = 0; i < codeGenModule->methodPointerCount; ++i)
+        {
+            MethodDefinitionKey currentMethod;
+            currentMethod.methodIndex = IL2CPP_TOKEN_METHOD_DEF | (i + 1); // produce method token
+            currentMethod.method = codeGenModule->methodPointers[i];
+            currentMethod.isGeneric = false;
+            managedMethods.push_back(currentMethod);
+        }
     }
 
     for (uint32_t i = 0; i < numberOfGenericMethods; ++i)
@@ -776,7 +886,7 @@ void RuntimeInit(MonoClass* klass)
     MonoError error;
     mono_runtime_class_init_full(il2cpp_mono_class_vtable(g_MonoDomain, klass), &error);
     if (!il2cpp_mono_error_ok(&error))
-        mono_error_raise_exception(&error);
+        mono_error_raise_exception_deprecated(&error);
 }
 
 std::string il2cpp_mono_format_exception(const MonoException *exc)
@@ -815,12 +925,42 @@ MonoVTable* il2cpp_mono_class_vtable(MonoDomain *domain, MonoClass *klass)
     return mono_class_vtable_full(domain, klass, &unused);
 }
 
+ArgvMono il2cpp_mono_convert_args(int argc, const Il2CppChar* const* argv)
+{
+    ArgvMono args;
+
+    args.argc = argc;
+
+    args.argvMonoObj = new std::string*[argc];
+    for (int i = 0; i < argc; ++i)
+        args.argvMonoObj[i] = new std::string();
+
+    for (int i = 0; i < argc; ++i)
+        *(args.argvMonoObj[i]) = il2cpp::utils::StringUtils::Utf16ToUtf8(argv[i]);
+
+    args.argvMono = new char*[argc];
+    for (int i = 0; i < argc; ++i)
+        args.argvMono[i] = const_cast<char*>(args.argvMonoObj[i]->c_str());
+
+    return args;
+}
+
+void il2cpp_mono_free_args(ArgvMono& args)
+{
+    delete[] args.argvMono;
+
+    for (int i = 0; i < args.argc; ++i)
+        delete args.argvMonoObj[i];
+
+    delete[] args.argvMonoObj;
+}
+
 extern "C"
 {
-void il2cpp_set_temp_dir(char *temp_dir)
-{
-    assert(0 && "This needs to be implemented for Android");
-}
+    void il2cpp_set_temp_dir(char *temp_dir)
+    {
+        assert(0 && "This needs to be implemented for Android");
+    }
 }
 
 #endif //RUNTIME_MONO

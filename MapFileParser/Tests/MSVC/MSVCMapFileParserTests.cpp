@@ -1,9 +1,8 @@
-#include "UnityPrefix.h"
-
 #if ENABLE_UNIT_TESTS
 
+#include "../../../external/Catch/catch.hpp"
+
 #include <sstream>
-#include "Runtime/Testing/Testing.h"
 #include "../../MSVC/MSVCMapFileParser.h"
 
 using namespace mapfileparser;
@@ -66,49 +65,46 @@ static const char* mockMapFile = "\
  0003:00000000 ??_R0?AUIl2CppExceptionWrapper@@@8 01088000     98F5E16DA77CA137853023FCE84040FD.obj\n\
  0003:00000028 ?Arrays_GenericArrayField_1__ctor_m14458_GenericMethod@@3UIl2CppGenericMethod@@A 01088028     E9FD63517D52C89694E224C19AA23AB9.obj";
 
-UNIT_TEST_SUITE(MSVCMapFileParserTests)
+TEST_CASE("Parsing_MSVC_MapFile_ContainsExpectedSectionsAndSymbols")
 {
-    TEST(Parsing_MSVC_MapFile_ContainsExpectedSectionsAndSymbols)
-    {
-        std::stringstream ss(mockMapFile);
-        MSVCMapFileParser parser;
-        MapFile mapFile = parser.Parse(ss);
-        CHECK_EQUAL(37, mapFile.sections.size());
+    std::stringstream ss(mockMapFile);
+    MSVCMapFileParser parser;
+    MapFile mapFile = parser.Parse(ss);
+    REQUIRE(37 == mapFile.sections.size());
 
-        Section section = mapFile.sections[0];
-        CHECK_EQUAL(0x00001000, section.start);
-        CHECK_EQUAL(0x0096f9be, section.length);
-        CHECK_EQUAL(".text", section.name);
-        CHECK_EQUAL("1", section.segmentName);
+    Section section = mapFile.sections[0];
+    REQUIRE(0x00001000 == section.start);
+    REQUIRE(0x0096f9be == section.length);
+    REQUIRE(".text" == section.name);
+    REQUIRE("1" == section.segmentName);
 
-        section = mapFile.sections[4];
-        CHECK_EQUAL(0x00A34000, section.start);
-        CHECK_EQUAL(0x00000304, section.length);
-        CHECK_EQUAL(".idata$5", section.name);
-        CHECK_EQUAL("2", section.segmentName);
+    section = mapFile.sections[4];
+    REQUIRE(0x00A34000 == section.start);
+    REQUIRE(0x00000304 == section.length);
+    REQUIRE(".idata$5" == section.name);
+    REQUIRE("2" == section.segmentName);
 
-        section = mapFile.sections[36];
-        CHECK_EQUAL(0x00EC5EC0, section.start);
-        CHECK_EQUAL(0x0004b020, section.length);
-        CHECK_EQUAL(".bss", section.name);
-        CHECK_EQUAL("3", section.segmentName);
+    section = mapFile.sections[36];
+    REQUIRE(0x00EC5EC0 == section.start);
+    REQUIRE(0x0004b020 == section.length);
+    REQUIRE(".bss" == section.name);
+    REQUIRE("3" == section.segmentName);
 
-        CHECK_EQUAL(9, mapFile.symbols.size());
-        Symbol symbol = mapFile.symbols[3];
-        CHECK_EQUAL(0x00001000, symbol.start);
-        CHECK_EQUAL(0x000000d0, symbol.length);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
+    REQUIRE(9 == mapFile.symbols.size());
+    Symbol symbol = mapFile.symbols[3];
+    REQUIRE(0x00001000 == symbol.start);
+    REQUIRE(0x000000d0 == symbol.length);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 
-        symbol = mapFile.symbols[4];
-        CHECK_EQUAL(0x000010d0, symbol.start);
-        CHECK_EQUAL(0x0096F8EE, symbol.length);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
+    symbol = mapFile.symbols[4];
+    REQUIRE(0x000010d0 == symbol.start);
+    REQUIRE(0x0096F8EE == symbol.length);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 
-        symbol = mapFile.symbols[8];
-        CHECK_EQUAL(0x00C88028, symbol.start);
-        CHECK_EQUAL(0x0023DE8C, symbol.length);
-        CHECK_EQUAL(kSegmentTypeData, symbol.segmentType);
-    }
+    symbol = mapFile.symbols[8];
+    REQUIRE(0x00C88028 == symbol.start);
+    REQUIRE(0x0023DE8C == symbol.length);
+    REQUIRE(kSegmentTypeData == symbol.segmentType);
 }
 
 #endif // ENABLE_UNIT_TESTS

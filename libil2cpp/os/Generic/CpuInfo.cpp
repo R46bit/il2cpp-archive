@@ -1,7 +1,5 @@
-#include "il2cpp-config.h"
-
-#if NET_4_0
-#if IL2CPP_USE_GENERIC_CPU_INFO
+#include "os/c-api/il2cpp-config-platforms.h"
+#if !IL2CPP_PLATFORM_SUPPORTS_CPU_INFO
 
 #include "os/CpuInfo.h"
 
@@ -21,5 +19,4 @@ namespace os
 }
 }
 
-#endif
 #endif

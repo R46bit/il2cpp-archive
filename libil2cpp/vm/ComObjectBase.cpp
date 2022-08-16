@@ -1,46 +1,33 @@
 #include "il2cpp-config.h"
-#include "metadata/GenericMetadata.h"
-#include "vm/Class.h"
+#include "vm/Atomic.h"
+#include "vm/COM.h"
 #include "vm/ComObjectBase.h"
-#include "vm/GenericClass.h"
-#include "vm/MetadataCache.h"
 
-using namespace il2cpp::vm;
-
-il2cpp_hresult_t STDCALL ComObjectBase::GetRuntimeClassName(Il2CppHString* className)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::GetIids(uint32_t* iidCount, Il2CppGuid** iids)
 {
-    Il2CppClass* objectClass = GetManagedObjectInline()->klass;
-    if (il2cpp_defaults.ireference_class != NULL && !Class::IsInflated(objectClass) && (Class::IsValuetype(objectClass) || objectClass == il2cpp_defaults.string_class))
-    {
-        // For value types/strings we're supposed to return the name of its boxed representation, i.e. Windows.Foundation.IReference`1<T>
-        const Il2CppGenericInst* inst = MetadataCache::GetGenericInst(&objectClass->byval_arg, 1);
-        Il2CppGenericClass* genericClass = metadata::GenericMetadata::GetGenericClass(il2cpp_defaults.ireference_class, inst);
-        objectClass = GenericClass::GetClass(genericClass);
-    }
-
-    const char* name = MetadataCache::GetWindowsRuntimeClassName(objectClass);
-    if (name == NULL)
-    {
-        *className = NULL;
-        return IL2CPP_S_OK;
-    }
-
-    UTF16String nameUtf16 = utils::StringUtils::Utf8ToUtf16(name);
-    return os::WindowsRuntime::CreateHString(utils::StringView<Il2CppChar>(nameUtf16.c_str(), nameUtf16.length()), className);
+    *iidCount = 0;
+    *iids = NULL;
+    return IL2CPP_S_OK;
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::GetTrustLevel(int32_t* trustLevel)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::GetRuntimeClassName(Il2CppHString* className)
+{
+    return GetRuntimeClassNameImpl(className);
+}
+
+il2cpp_hresult_t il2cpp::vm::ComObjectBase::GetRuntimeClassNameImpl(Il2CppHString* className)
+{
+    *className = NULL;
+    return IL2CPP_S_OK;
+}
+
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::GetTrustLevel(int32_t* trustLevel)
 {
     *trustLevel = 0;
     return IL2CPP_S_OK;
 }
 
-Il2CppObject* STDCALL ComObjectBase::GetManagedObject()
-{
-    return GetManagedObjectInline();
-}
-
-il2cpp_hresult_t STDCALL ComObjectBase::GetUnmarshalClass(const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags, Il2CppGuid* clsid)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::GetUnmarshalClass(const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags, Il2CppGuid* clsid)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -50,7 +37,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::GetUnmarshalClass(const Il2CppGuid& iid,
     return freeThreadedMarshaler->GetUnmarshalClass(iid, object, context, reserved, flags, clsid);
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::GetMarshalSizeMax(const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags, uint32_t* size)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::GetMarshalSizeMax(const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags, uint32_t* size)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -60,7 +47,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::GetMarshalSizeMax(const Il2CppGuid& iid,
     return freeThreadedMarshaler->GetMarshalSizeMax(iid, object, context, reserved, flags, size);
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::MarshalInterface(Il2CppIStream* stream, const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::MarshalInterface(Il2CppIStream* stream, const Il2CppGuid& iid, void* object, uint32_t context, void* reserved, uint32_t flags)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -70,7 +57,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::MarshalInterface(Il2CppIStream* stream, 
     return freeThreadedMarshaler->MarshalInterface(stream, iid, object, context, reserved, flags);
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::UnmarshalInterface(Il2CppIStream* stream, const Il2CppGuid& iid, void** object)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::UnmarshalInterface(Il2CppIStream* stream, const Il2CppGuid& iid, void** object)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -80,7 +67,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::UnmarshalInterface(Il2CppIStream* stream
     return freeThreadedMarshaler->UnmarshalInterface(stream, iid, object);
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::ReleaseMarshalData(Il2CppIStream* stream)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::ReleaseMarshalData(Il2CppIStream* stream)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -90,7 +77,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::ReleaseMarshalData(Il2CppIStream* stream
     return freeThreadedMarshaler->ReleaseMarshalData(stream);
 }
 
-il2cpp_hresult_t STDCALL ComObjectBase::DisconnectObject(uint32_t reserved)
+il2cpp_hresult_t STDCALL il2cpp::vm::ComObjectBase::DisconnectObject(uint32_t reserved)
 {
     Il2CppIMarshal* freeThreadedMarshaler;
     il2cpp_hresult_t hr = GetFreeThreadedMarshalerNoAddRef(&freeThreadedMarshaler);
@@ -100,7 +87,7 @@ il2cpp_hresult_t STDCALL ComObjectBase::DisconnectObject(uint32_t reserved)
     return freeThreadedMarshaler->DisconnectObject(reserved);
 }
 
-il2cpp_hresult_t ComObjectBase::GetFreeThreadedMarshalerNoAddRef(Il2CppIMarshal** destination)
+il2cpp_hresult_t il2cpp::vm::ComObjectBase::GetFreeThreadedMarshalerNoAddRef(Il2CppIMarshal** destination)
 {
     Il2CppIMarshal* freeThreadedMarshaler = m_FreeThreadedMarshaler;
     if (freeThreadedMarshaler == NULL)

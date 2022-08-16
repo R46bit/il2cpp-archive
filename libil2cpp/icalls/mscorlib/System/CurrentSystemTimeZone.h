@@ -16,7 +16,7 @@ namespace System
     class LIBIL2CPP_CODEGEN_API CurrentSystemTimeZone
     {
     public:
-        static bool GetTimeZoneData(int, Il2CppArray * *, Il2CppArray * *);
+        static bool GetTimeZoneData40(int year, Il2CppArray * *, Il2CppArray * *, bool * daylight_inverted);
     };
 } /* namespace System */
 } /* namespace mscorlib */

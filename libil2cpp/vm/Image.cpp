@@ -2,7 +2,6 @@
 #include <vector>
 #include <map>
 #include <limits>
-#include "os/MemoryMappedFile.h"
 #include "os/Mutex.h"
 #include "utils/StringUtils.h"
 #include "vm/Class.h"
@@ -12,18 +11,15 @@
 #include "vm/Type.h"
 #include "utils/HashUtils.h"
 #include "utils/Il2CppHashMap.h"
+#include "utils/MemoryMappedFile.h"
 #include "utils/StringUtils.h"
 #include "vm-utils/VmStringUtils.h"
-
-using il2cpp::utils::HashUtils;
-using il2cpp::utils::StringUtils;
-
 
 struct NamespaceAndNamePairHash
 {
     size_t operator()(const std::pair<const char*, const char*>& pair) const
     {
-        return HashUtils::Combine(StringUtils::Hash(pair.first), StringUtils::Hash(pair.second));
+        return il2cpp::utils::HashUtils::Combine(il2cpp::utils::StringUtils::Hash(pair.first), il2cpp::utils::StringUtils::Hash(pair.second));
     }
 };
 
@@ -65,7 +61,7 @@ namespace vm
 {
     const Il2CppAssembly* Image::GetAssembly(const Il2CppImage* image)
     {
-        return MetadataCache::GetAssemblyFromIndex(image->assemblyIndex);
+        return image->assembly;
     }
 
     typedef il2cpp::vm::StackFrames::const_reverse_iterator StackReverseIterator;
@@ -84,7 +80,7 @@ namespace vm
     {
         for (StackReverseIterator it = first; it != last; it++)
         {
-            Il2CppClass* klass = it->method->declaring_type;
+            Il2CppClass* klass = it->method->klass;
             if (klass->image != NULL && !IsSystemType(klass) && !IsSystemReflectionAssembly(klass))
             {
                 return it;
@@ -101,7 +97,7 @@ namespace vm
 
         if (imageIt != stack.rend())
         {
-            return imageIt->method->declaring_type->image;
+            return imageIt->method->klass->image;
         }
 
         // Fallback to corlib if no image is found
@@ -119,7 +115,7 @@ namespace vm
 
             if (imageIt != stack.rend())
             {
-                return imageIt->method->declaring_type->image;
+                return imageIt->method->klass->image;
             }
         }
 
@@ -402,7 +398,7 @@ namespace vm
     {
         os::FastAutoLock lock(&s_Mutex);
         for (std::map<Il2CppReflectionAssembly*, void*>::iterator i = s_CachedMemoryMappedResourceFiles.begin(); i != s_CachedMemoryMappedResourceFiles.end(); ++i)
-            os::MemoryMappedFile::Unmap(i->second);
+            utils::MemoryMappedFile::Unmap(i->second);
 
         s_CachedMemoryMappedResourceFiles.clear();
         s_CachedResourceData.clear();

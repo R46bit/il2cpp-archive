@@ -1,15 +1,21 @@
 #pragma once
 
-#if IL2CPP_TARGET_POSIX
+#if (IL2CPP_TARGET_POSIX || IL2CPP_SUPPORT_SOCKETS_POSIX_API) && !IL2CPP_TINY_WITHOUT_DEBUGGER
 
 #include <string>
 #include <vector>
 #include <stdint.h>
+#include <sys/socket.h>
 
 #include "os/Socket.h"
 #include "os/ErrorCodes.h"
 #include "os/WaitStatus.h"
 #include "utils/NonCopyable.h"
+#if IL2CPP_USE_NETWORK_ACCESS_HANDLER
+#include "os/NetworkAccessHandler.h"
+#else
+#include "NetworkAccessHandlerStub.h"
+#endif
 
 struct sockaddr;
 
@@ -93,6 +99,10 @@ namespace os
         WaitStatus SetSocketOptionMembership(SocketOptionLevel level, SocketOptionName name, IPv6Address ipv6, uint64_t interfaceOffset);
 #endif
 
+#if IL2CPP_SUPPORT_IPV6_SUPPORT_QUERY
+        static bool IsIPv6Supported();
+#endif
+
         WaitStatus SendFile(const char *filename, TransmitFileBuffers *buffers, TransmitFileOptions options);
 
         static WaitStatus Poll(std::vector<PollRequest> &requests, int32_t count, int32_t timeout, int32_t *result, int32_t *error);
@@ -100,11 +110,15 @@ namespace os
         static WaitStatus Poll(PollRequest& request, int32_t timeout, int32_t *result, int32_t *error);
 
         static WaitStatus GetHostName(std::string &name);
-        static WaitStatus GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list);
+        static WaitStatus GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addresses);
+        static WaitStatus GetHostByName(const std::string &host, std::string &name, int32_t &family, std::vector<std::string> &aliases, std::vector<void*> &addr_list, int32_t &addr_size);
         static WaitStatus GetHostByAddr(const std::string &address, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list);
 
         static void Startup();
         static void Cleanup();
+
+        static bool is_private(const struct sockaddr *sa, socklen_t sa_size);
+        static bool is_private(const char* address);
 
     private:
 
@@ -116,6 +130,7 @@ namespace os
         ErrorCode _saved_error;
         int32_t _still_readable;
         ThreadStatusCallback _thread_status_callback;
+        NetworkAccessHandler _networkAccess;
 
         void StoreLastError();
         void StoreLastError(int32_t error_no);

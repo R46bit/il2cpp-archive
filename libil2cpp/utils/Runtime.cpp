@@ -37,6 +37,7 @@ namespace utils
 
     std::string Runtime::GetDataDir()
     {
+#if !IL2CPP_TINY_WITHOUT_DEBUGGER
 #if defined(RUNTIME_MONO)
         // use explicit value if set
         char* dataDirCS = mono_unity_get_data_dir();
@@ -54,7 +55,7 @@ namespace utils
 
         std::string executablePath = os::Path::GetExecutablePath();
         if (!executablePath.empty())
-            return PathUtils::Combine(PathUtils::DirectoryName(executablePath), StringView<char>("Data"));
+            return PathUtils::Combine(PathUtils::DirectoryName(executablePath), StringView<char>(IL2CPP_DEFAULT_DATA_DIR_PATH_STR));
 
         if (s_DataDirFallback.size() == 0 && Environment::GetNumMainArgs() > 0)
         {
@@ -63,6 +64,9 @@ namespace utils
         }
 
         return s_DataDirFallback;
+#else
+        return std::string();
+#endif
     }
 } // utils
 } // il2cpp

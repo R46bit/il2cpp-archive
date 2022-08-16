@@ -99,7 +99,8 @@ namespace os
         static WaitStatus Poll(PollRequest& request, int32_t timeout, int32_t *result, int32_t *error);
 
         static WaitStatus GetHostName(std::string &name);
-        static WaitStatus GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list);
+        static WaitStatus GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addresses);
+        static WaitStatus GetHostByName(const std::string &host, std::string &name, int32_t &family, std::vector<std::string> &aliases, std::vector<void*> &addr_list, int32_t &addr_size);
         static WaitStatus GetHostByAddr(const std::string &address, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list);
 
         static void Startup();
@@ -120,6 +121,8 @@ namespace os
         void StoreLastError(int32_t error_no);
 
         WaitStatus ConnectInternal(struct sockaddr *sa, int32_t sa_size);
+        WaitStatus SendToInternal(struct sockaddr *sa, int32_t sa_size, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len);
+        WaitStatus RecvFromInternal(struct sockaddr* sa, int32_t sa_size, const uint8_t* data, int32_t count, os::SocketFlags flags, int32_t* len, os::EndPointInfo& ep);
         WaitStatus SetSocketOptionInternal(int32_t level, int32_t name, const void *value, int32_t len);
     };
 }

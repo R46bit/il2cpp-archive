@@ -1,4 +1,3 @@
-#if NET_4_0
 #include "il2cpp-config.h"
 #include "VersioningHelper.h"
 
@@ -16,7 +15,7 @@ namespace Versioning
 {
     int32_t VersioningHelper::GetRuntimeId()
     {
-        NOT_IMPLEMENTED_ICALL(VersioningHelper::GetRuntimeId);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(VersioningHelper::GetRuntimeId);
         IL2CPP_UNREACHABLE;
         return 0;
     }
@@ -26,4 +25,3 @@ namespace Versioning
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-#endif

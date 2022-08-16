@@ -3,6 +3,7 @@
 #include <utils/dynamic_array.h>
 #include "vm/Array.h"
 #include "vm/Class.h"
+#include "vm/ClassInlines.h"
 #include "vm/Field.h"
 #include "vm/Liveness.h"
 #include "vm/Type.h"
@@ -172,7 +173,7 @@ namespace vm
 
     void LivenessState::TraverseGenericObject(Il2CppObject* object, LivenessState* state)
     {
-        NOT_IMPLEMENTED_NO_ASSERT(LivenessState::TraverseGenericObject, "Use GC bitmap when we have one");
+        IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(LivenessState::TraverseGenericObject, "Use GC bitmap when we have one");
 
 #if IL2CPP_HAS_GC_DESCRIPTORS
         size_t gc_desc = (size_t)(GET_CLASS(object)->gc_desc);
@@ -358,7 +359,7 @@ namespace vm
     bool LivenessState::ShouldProcessValue(Il2CppObject* val, Il2CppClass* filter)
     {
         Il2CppClass* val_class = GET_CLASS(val);
-        if (filter && !Class::HasParentUnsafe(val_class, filter))
+        if (filter && !ClassInlines::HasParentUnsafe(val_class, filter))
             return false;
 
         return true;

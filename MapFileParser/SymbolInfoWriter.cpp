@@ -5,7 +5,23 @@ namespace mapfileparser
 {
     static bool ShouldWriteSymbol(const Symbol& symbol)
     {
-        return symbol.segmentType == kSegmentTypeCode;
+        if (symbol.segmentType != kSegmentTypeCode)
+            return false;
+
+        // assume the only symbols we care about are managed methods with symbol
+        // names of the form: <prefix>_m<40 character hash value>
+        size_t index = symbol.name.rfind("_m");
+        if (index == std::string::npos)
+            return false;
+
+        index += 2;
+
+        if (symbol.name.size() != index + 40)
+            return false;
+
+        bool endsWithHash = symbol.name.find_first_not_of("0123456789ABCDEF", index) == std::string::npos;
+
+        return endsWithHash;
     }
 
     void SymbolInfoWriter::Write(std::ostream& out, const MapFile& mapFile)

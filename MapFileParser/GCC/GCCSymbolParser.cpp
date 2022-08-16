@@ -12,7 +12,6 @@ namespace mapfileparser
     {
         int64_t address;
         int32_t length;
-        int32_t objectFileIndex = 0;
         size_t firstLineLength = firstLine.length();
         size_t secondLineLength = secondLine.length();
         size_t longestLength = std::max(firstLineLength, secondLineLength);

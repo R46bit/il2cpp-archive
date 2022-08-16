@@ -25,13 +25,15 @@ namespace vm
     class LIBIL2CPP_CODEGEN_API Runtime
     {
     public:
-        static void Init(const char* filename, const char *runtime_version);
+        static bool Init(const char* domainName = "IL2CPP Root Domain");
         static void Shutdown();
         static bool IsShuttingDown();
         static void SetConfigDir(const char *path);
         static void SetConfigUtf16(const Il2CppChar* executablePath);
         static void SetConfig(const char* executablePath);
+        static void SetUnityTlsInterface(const void* unitytlsInterface);
         static std::string GetConfigDir();
+        static const void* GetUnityTlsInterface();
         static const char *GetFrameworkVersion();
         static const MethodInfo* GetDelegateInvoke(Il2CppClass* klass);
         static Il2CppObject* DelegateInvoke(Il2CppDelegate *obj, void **params, Il2CppException **exc);
@@ -55,6 +57,9 @@ namespace vm
 
         static const char *GetBundledMachineConfig();
         static void RegisterBundledMachineConfig(const char *config_xml);
+
+        static int32_t GetExitCode();
+        static void SetExitCode(int32_t value);
 
     private:
         static void CallUnhandledExceptionDelegate(Il2CppDomain* domain, Il2CppDelegate* delegate, Il2CppException* exc);

@@ -1,10 +1,8 @@
-#include "UnityPrefix.h"
-
 #if ENABLE_UNIT_TESTS
 
-#include <sstream>
+#include "../../../external/Catch/catch.hpp"
 
-#include "Runtime/Testing/Testing.h"
+#include <sstream>
 #include "../../GCC/GCCMapFileParser.h"
 
 using namespace mapfileparser;
@@ -49,37 +47,34 @@ static const char* mockMapFile = "\
 0x0000000000396f78                il2cpp_codegen_get_array_type_mismatch_exception()\n\
  .text._Z6IsInstP12Il2CppObjectP11Il2CppClass\n\
 0x0000000000396f90       0x28 /var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B3.o\n\
-0x0000000000396f90                IsInst(Il2CppObject*, Il2CppClass*)\n\
+0x0000000000396f90                IsInst(Il2CppObject* == Il2CppClass*)\n\
  .text.Z9CastclassP12Il2CppObjectP11Il2CppClass\n\
 0x0000000000396fb8      0x170 /var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B4.o\n\
-0x0000000000396fb8                Castclass(Il2CppObject*, Il2CppClass*)\n\
+0x0000000000396fb8                Castclass(Il2CppObject* == Il2CppClass*)\n\
 ";
 
-UNIT_TEST_SUITE(GCCMapFileParserTests)
+TEST_CASE("Parsing_GCC_MapFile_ContainsExpectedSectionsAndSymbols")
 {
-    TEST(Parsing_GCC_MapFile_ContainsExpectedSectionsAndSymbols)
-    {
-        std::stringstream ss(mockMapFile);
-        GCCMapFileParser parser;
-        MapFile mapFile = parser.Parse(ss);
-        CHECK_EQUAL(0, mapFile.sections.size());
+    std::stringstream ss(mockMapFile);
+    GCCMapFileParser parser;
+    MapFile mapFile = parser.Parse(ss);
+    REQUIRE(0 == mapFile.sections.size());
 
-        CHECK_EQUAL(9, mapFile.symbols.size());
+    REQUIRE(9 == mapFile.symbols.size());
 
-        Symbol symbol = mapFile.symbols[3];
-        CHECK_EQUAL(0x396f38, symbol.start);
-        CHECK_EQUAL(0x20, symbol.length);
-        CHECK_EQUAL(symbol.name, "_ZN30RuntimeFieldHandle_t318421414311set_value_0E8IntPtr_t");
-        CHECK_EQUAL(symbol.objectFile, "/var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B3.o");
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
+    Symbol symbol = mapFile.symbols[3];
+    REQUIRE(0x396f38 == symbol.start);
+    REQUIRE(0x20 == symbol.length);
+    REQUIRE(symbol.name == "_ZN30RuntimeFieldHandle_t318421414311set_value_0E8IntPtr_t");
+    REQUIRE(symbol.objectFile == "/var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B3.o");
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 
-        symbol = mapFile.symbols[8];
-        CHECK_EQUAL(0x396fb8, symbol.start);
-        CHECK_EQUAL(0x170, symbol.length);
-        CHECK_EQUAL(symbol.name, "Z9CastclassP12Il2CppObjectP11Il2CppClass");
-        CHECK_EQUAL(symbol.objectFile, "/var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B4.o");
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
-    }
+    symbol = mapFile.symbols[8];
+    REQUIRE(0x396fb8 == symbol.start);
+    REQUIRE(0x170 == symbol.length);
+    REQUIRE(symbol.name == "Z9CastclassP12Il2CppObjectP11Il2CppClass");
+    REQUIRE(symbol.objectFile == "/var/folders/tj/9rtndw3j6tdb0z3fqc21k3ph0000gp/T/il2cpp/AllTests_cpprunner_cache/objectfiles/8C79E9B8EDDA852A73F7465C089D46B4.o");
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 }
 
 #endif // ENABLE_UNIT_TESTS

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include <vector>
 #include "il2cpp-config.h"
 #include "Assembly.h"
 #include "metadata/Il2CppTypeVector.h"
 #include "il2cpp-class-internals.h"
+#include "utils/dynamic_array.h"
+#include "os/Mutex.h"
 
 struct MethodInfo;
 struct Il2CppClass;
@@ -20,14 +21,21 @@ namespace il2cpp
 {
 namespace vm
 {
+    struct RGCTXCollection
+    {
+        int32_t count;
+        const Il2CppRGCTXDefinition* items;
+    };
+
     class LIBIL2CPP_CODEGEN_API MetadataCache
     {
     public:
 
         static void Register(const Il2CppCodeRegistration * const codeRegistration, const Il2CppMetadataRegistration * const metadataRegistration, const Il2CppCodeGenOptions* const codeGenOptions);
 
-        static void Initialize();
+        static bool Initialize();
         static void InitializeGCSafe();
+        static void InitializeAllMethodMetadata();
 
         static Il2CppClass* GetGenericInstanceType(Il2CppClass* genericTypeDefinition, const il2cpp::metadata::Il2CppTypeVector& genericArgumentTypes);
         static const MethodInfo* GetGenericInstanceMethod(const MethodInfo* genericMethodDefinition, const Il2CppGenericContext* context);
@@ -37,8 +45,10 @@ namespace vm
         static const MethodInfo* GetGenericMethodDefinition(const MethodInfo* method);
 
         static Il2CppClass* GetPointerType(Il2CppClass* type);
-        static Il2CppClass* GetWindowsRuntimeClass(const std::string& fullName);
+        static Il2CppClass* GetWindowsRuntimeClass(const char* fullName);
         static const char* GetWindowsRuntimeClassName(const Il2CppClass* klass);
+        static Il2CppMethodPointer GetWindowsRuntimeFactoryCreationFunction(const char* fullName);
+        static Il2CppClass* GetClassForGuid(const Il2CppGuid* guid);
         static void AddPointerType(Il2CppClass* type, Il2CppClass* pointerType);
 
         static const Il2CppGenericInst* GetGenericInst(const Il2CppType* const* types, uint32_t typeCount);
@@ -48,7 +58,7 @@ namespace vm
         static InvokerMethod GetInvokerMethodPointer(const MethodInfo* methodDefinition, const Il2CppGenericContext* context);
         static Il2CppMethodPointer GetMethodPointer(const MethodInfo* methodDefinition, const Il2CppGenericContext* context);
 
-        static Il2CppClass* GetTypeInfoFromTypeIndex(TypeIndex index);
+        static Il2CppClass* GetTypeInfoFromTypeIndex(TypeIndex index, bool throwOnError = true);
         static const Il2CppType* GetIl2CppTypeFromIndex(TypeIndex index);
         static const MethodInfo* GetMethodInfoFromIndex(EncodedMethodIndex index);
         static const Il2CppGenericMethod* GetGenericMethodFromIndex(GenericMethodIndex index);
@@ -58,15 +68,16 @@ namespace vm
         static FieldInfo* GetFieldInfoFromIndex(EncodedMethodIndex index);
         static void InitializeMethodMetadata(uint32_t index);
 
-        static Il2CppMethodPointer GetMethodPointerFromIndex(MethodIndex index);
-        static InvokerMethod GetMethodInvokerFromIndex(MethodIndex index);
+        static Il2CppMethodPointer GetAdjustorThunk(const Il2CppImage* image, uint32_t token);
+        static Il2CppMethodPointer GetMethodPointer(const Il2CppImage* image, uint32_t token);
+        static InvokerMethod GetMethodInvoker(const Il2CppImage* image, uint32_t token);
         static const Il2CppInteropData* GetInteropDataForType(const Il2CppType* type);
-        static Il2CppMethodPointer GetReversePInvokeWrapperFromIndex(MethodIndex index);
+        static Il2CppMethodPointer GetReversePInvokeWrapper(const Il2CppImage* image, const MethodInfo* method);
 
         static Il2CppMethodPointer GetUnresolvedVirtualCallStub(const MethodInfo* method);
 
         static const Il2CppAssembly* GetAssemblyFromIndex(AssemblyIndex index);
-        static const Il2CppAssembly* GetAssemblyByName(const std::string& name);
+        static const Il2CppAssembly* GetAssemblyByName(const char* nameToFind);
         static Il2CppImage* GetImageFromIndex(ImageIndex index);
         static Il2CppClass* GetTypeInfoFromTypeDefinitionIndex(TypeDefinitionIndex index);
         static const Il2CppTypeDefinition* GetTypeDefinitionFromIndex(TypeDefinitionIndex index);
@@ -78,7 +89,7 @@ namespace vm
         static const Il2CppType* GetInterfaceFromIndex(InterfacesIndex index);
         static EncodedMethodIndex GetVTableMethodFromIndex(VTableIndex index);
         static Il2CppInterfaceOffsetPair GetInterfaceOffsetIndex(InterfaceOffsetIndex index);
-        static const Il2CppRGCTXDefinition* GetRGCTXDefinitionFromIndex(RGCTXIndex index);
+        static RGCTXCollection GetRGCTXs(const Il2CppImage* image, uint32_t token);
         static const Il2CppEventDefinition* GetEventDefinitionFromIndex(EventIndex index);
         static const Il2CppFieldDefinition* GetFieldDefinitionFromIndex(FieldIndex index);
         static const Il2CppFieldDefaultValue* GetFieldDefaultValueFromIndex(FieldIndex index);
@@ -93,24 +104,35 @@ namespace vm
         static const Il2CppParameterDefinition* GetParameterDefinitionFromIndex(ParameterIndex index);
 
         // returns the compiler computer field offset for type definition fields
-        static int32_t GetFieldOffsetFromIndex(TypeIndex typeIndex, int32_t fieldIndexInType);
+        static int32_t GetFieldOffsetFromIndexLocked(TypeIndex typeIndex, int32_t fieldIndexInType, FieldInfo* field, const il2cpp::os::FastAutoLock& lock);
+        static int32_t GetThreadLocalStaticOffsetForField(FieldInfo* field);
+        static void AddThreadLocalStaticOffsetForFieldLocked(FieldInfo* field, int32_t offset, const il2cpp::os::FastAutoLock& lock);
 
         static int32_t GetReferenceAssemblyIndexIntoAssemblyTable(int32_t referencedAssemblyTableIndex);
 
         static const TypeDefinitionIndex GetIndexForTypeDefinition(const Il2CppClass* typeDefinition);
         static const GenericParameterIndex GetIndexForGenericParameter(const Il2CppGenericParameter* genericParameter);
+        static const MethodIndex GetIndexForMethodDefinition(const MethodInfo* method);
 
+        static CustomAttributeIndex GetCustomAttributeIndex(const Il2CppImage* image, uint32_t token);
         static CustomAttributesCache* GenerateCustomAttributesCache(CustomAttributeIndex index);
-        static CustomAttributeTypeCache* GenerateCustomAttributeTypeCache(CustomAttributeIndex index);
+        static CustomAttributesCache* GenerateCustomAttributesCache(const Il2CppImage* image, uint32_t token);
+        static bool HasAttribute(CustomAttributeIndex index, Il2CppClass* attribute);
+        static bool HasAttribute(const Il2CppImage* image, uint32_t token, Il2CppClass* attribute);
 
         typedef void(*WalkTypesCallback)(Il2CppClass* type, void* context);
         static void WalkPointerTypes(WalkTypesCallback callback, void* context);
 
+        static bool StructLayoutPackIsDefault(TypeDefinitionIndex index);
+        static int32_t StructLayoutPack(TypeDefinitionIndex index);
+        static bool StructLayoutSizeIsDefault(TypeDefinitionIndex index);
     private:
         static void InitializeUnresolvedSignatureTable();
         static void InitializeStringLiteralTable();
         static void InitializeGenericMethodTable();
         static void InitializeWindowsRuntimeTypeNamesTables();
+        static void InitializeGuidToClassTable();
+        static void IntializeMethodMetadataRange(uint32_t start, uint32_t count, const utils::dynamic_array<Il2CppMetadataUsage>& expectedUsages, bool throwOnError);
     };
 } // namespace vm
 } // namespace il2cpp

@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if !IL2CPP_USE_GENERIC_SOCKET_IMPL && IL2CPP_TARGET_POSIX
+#if !IL2CPP_USE_GENERIC_SOCKET_IMPL && (IL2CPP_TARGET_POSIX || IL2CPP_SUPPORT_SOCKETS_POSIX_API) && IL2CPP_SUPPORT_SOCKETS
 
 // enable support for AF_UNIX and socket paths
 #define SUPPORT_UNIXSOCKETS (1)
@@ -30,7 +30,7 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 
-#if IL2CPP_TARGET_LINUX || IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_TIZEN
+#if IL2CPP_TARGET_LINUX || IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_LUMIN || IL2CPP_TARGET_JAVASCRIPT
 #include <sys/sendfile.h>
 #endif
 
@@ -43,7 +43,6 @@
 #include "os/Posix/ThreadImpl.h"
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
-#include "vm/Exception.h"
 
 #include "il2cpp-vm-support.h"
 
@@ -62,102 +61,240 @@ namespace os
         return false;
     }
 
-    static struct in_addr *get_local_ips(int32_t family, int32_t *nips)
+    static bool is_loopback(const char* address)
     {
-        const int32_t max_ifaces = 50; // 50 interfaces should be enough ...
-
-        *nips = 0;
-
-        if (family != AF_INET)
-            return NULL;
-
-        int32_t addr_size = 0;
-        int32_t offset = 0;
-        if (family == AF_INET)
+        if (strcmp(address, "localhost") == 0)
         {
-            addr_size = sizeof(struct in_addr);
-            offset = offsetof(struct sockaddr_in, sin_addr);
-#if IL2CPP_SUPPORT_IPV6
+            return true;
         }
-        else if (family == AF_INET6)
+
         {
-            addr_size = sizeof(struct in6_addr);
-            offset = offsetof(struct sockaddr_in6, sin6_addr);
+            sockaddr_in sin = {0};
+            if (inet_pton(AF_INET, address, &sin.sin_addr) > 0)
+            {
+                return is_loopback(AF_INET, (uint8_t*)&sin.sin_addr);
+            }
+        }
+#if IL2CPP_SUPPORT_IPV6
+        {
+            sockaddr_in6 sin = {0};
+            if (inet_pton(AF_INET6, address, &sin.sin6_addr) > 0)
+            {
+                return is_loopback(AF_INET6, (uint8_t*)&sin.sin6_addr);
+            }
+        }
+#endif
+        return false;
+    }
+
+    static bool is_limited_broadcast(const struct sockaddr *sa, socklen_t sa_size)
+    {
+        if (sa != NULL && sa_size >= sizeof(sockaddr_in))
+        {
+            const sockaddr_in *sin = (const sockaddr_in *)sa;
+            return sin->sin_family == AF_INET && sin->sin_addr.s_addr == htonl(INADDR_BROADCAST);
+        }
+
+        return false;
+    }
+
+    bool SocketImpl::is_private(const struct sockaddr *sa, socklen_t sa_size)
+    {
+        if (is_limited_broadcast(sa, sa_size))
+        {
+            return true;
+        }
+
+        if (sa != NULL)
+        {
+            if (sa_size >= sizeof(const sockaddr_in) && sa->sa_family == AF_INET)
+            {
+                const uint8_t *addr = (uint8_t *)&(((const sockaddr_in *)sa)->sin_addr);
+                if (addr[0] == 10) // Class A
+                {
+                    return true;
+                }
+                if (addr[0] == 172 && (addr[1] & 0xf0) == 16) // Class B
+                {
+                    return true;
+                }
+                if (addr[0] == 192 && addr[1] == 168) // Class C
+                {
+                    return true;
+                }
+            }
+#if IL2CPP_SUPPORT_IPV6
+            else if (sa_size >= sizeof(struct sockaddr_in6) && sa->sa_family == AF_INET6)
+            {
+                const uint8_t *addr = (uint8_t *)&(((const sockaddr_in6 *)sa)->sin6_addr);
+                if (addr[0] == 0xf && (addr[1] & 0xe) == 0xc) // Unique local unicast address(ULA)
+                {
+                    return true;
+                }
+                if (addr[0] == 0xf && addr[1] == 0xe && (addr[2] & 0xc) == 0x8) // Link local unicast address
+                {
+                    return true;
+                }
+            }
 #endif
         }
-        else
+
+        return false;
+    }
+
+    bool SocketImpl::is_private(const char* address)
+    {
+        if (address == 0 || address[0] == 0)
         {
-            return NULL;
+            return false;
         }
 
-        int32_t fd = socket(family, SOCK_STREAM, 0);
+        {
+            sockaddr_in sin = {0};
+            if (inet_pton(AF_INET, address, &sin.sin_addr) > 0)
+            {
+                sin.sin_family = AF_INET;
+                return is_private((const sockaddr *)&sin, sizeof(sin));
+            }
+        }
+#if IL2CPP_SUPPORT_IPV6
+        {
+            sockaddr_in6 sin = {0};
+            if (inet_pton(AF_INET6, address, &sin.sin6_addr) > 0)
+            {
+                sin.sin6_family = AF_INET6;
+                return is_private((const sockaddr *)&sin, sizeof(sin));
+            }
+        }
+#endif
+        return false;
+    }
 
+#define IFCONF_BUFF_SIZE 1024
+#ifndef _SIZEOF_ADDR_IFREQ
+#define _SIZEOF_ADDR_IFREQ(ifr) (sizeof (struct ifreq))
+#endif
+
+#define FOREACH_IFR(IFR, IFC) \
+    for (IFR = (IFC).ifc_req;   \
+    ifr < (struct ifreq*)((char*)(IFC).ifc_req + (IFC).ifc_len); \
+    ifr = (struct ifreq*)((char*)(IFR) + _SIZEOF_ADDR_IFREQ (*(IFR))))
+
+    static int address_size_for_family(int family)
+    {
+        switch (family)
+        {
+            case AF_INET:
+                return sizeof(struct in_addr);
+#if IL2CPP_SUPPORT_IPV6
+            case AF_INET6:
+                return sizeof(struct in6_addr);
+#endif
+        }
+        return 0;
+    }
+
+    static void*
+    get_address_from_sockaddr(struct sockaddr *sa)
+    {
+        switch (sa->sa_family)
+        {
+            case AF_INET:
+                return &((struct sockaddr_in*)sa)->sin_addr;
+#if IL2CPP_SUPPORT_IPV6
+            case AF_INET6:
+                return &((struct sockaddr_in6*)sa)->sin6_addr;
+#endif
+        }
+        return NULL;
+    }
+
+    static struct in_addr *get_local_ips(int32_t family, int32_t *interface_count)
+    {
+        int fd;
         struct ifconf ifc;
-        ifc.ifc_len = max_ifaces * sizeof(struct ifreq);
-        ifc.ifc_buf = (char*)malloc(ifc.ifc_len);
-
-        if (ioctl(fd, SIOCGIFCONF, &ifc) < 0)
-        {
-            close(fd);
-            free(ifc.ifc_buf);
-            return NULL;
-        }
-
-        int32_t count = ifc.ifc_len / sizeof(struct ifreq);
-        *nips = count;
-        if (count == 0)
-        {
-            free(ifc.ifc_buf);
-            close(fd);
-            return NULL;
-        }
-
-        int32_t i;
         struct ifreq *ifr;
-        struct ifreq iflags;
+        int if_count = 0;
         bool ignore_loopback = false;
+        void *result = NULL;
+        char *result_ptr;
 
-        for (i = 0, ifr = ifc.ifc_req; i < *nips; i++, ifr++)
-        {
-            strcpy(iflags.ifr_name, ifr->ifr_name);
-            if (ioctl(fd, SIOCGIFFLAGS, &iflags) < 0)
+        *interface_count = 0;
+
+        if (!address_size_for_family(family))
+            return NULL;
+
+        fd = socket(family, SOCK_STREAM, 0);
+        if (fd == -1)
+            return NULL;
+
+        memset(&ifc, 0, sizeof(ifc));
+        ifc.ifc_len = IFCONF_BUFF_SIZE;
+        ifc.ifc_buf = (char*)malloc(IFCONF_BUFF_SIZE);   /* We can't have such huge buffers on the stack. */
+        if (ioctl(fd, SIOCGIFCONF, &ifc) < 0)
+            goto done;
+
+        FOREACH_IFR(ifr, ifc) {
+            struct ifreq iflags;
+
+            //only return addresses of the same type as @family
+            if (ifr->ifr_addr.sa_family != family)
+            {
+                ifr->ifr_name[0] = '\0';
                 continue;
+            }
 
+            strcpy(iflags.ifr_name, ifr->ifr_name);
+
+            //ignore interfaces we can't get props for
+            if (ioctl(fd, SIOCGIFFLAGS, &iflags) < 0)
+            {
+                ifr->ifr_name[0] = '\0';
+                continue;
+            }
+
+            //ignore interfaces that are down
             if ((iflags.ifr_flags & IFF_UP) == 0)
             {
                 ifr->ifr_name[0] = '\0';
                 continue;
             }
 
+            //If we have a non-loopback iface, don't return any loopback
             if ((iflags.ifr_flags & IFF_LOOPBACK) == 0)
+            {
                 ignore_loopback = true;
+                ifr->ifr_name[0] = 1; //1 means non-loopback
+            }
+            else
+            {
+                ifr->ifr_name[0] = 2;  //2 means loopback
+            }
+            ++if_count;
         }
 
-        close(fd);
-
-        uint8_t *result = (uint8_t*)malloc(addr_size * count);
-        uint8_t *tmp_ptr = result;
-
-        for (i = 0, ifr = ifc.ifc_req; i < count; i++, ifr++)
-        {
+        result = (char*)malloc(if_count * address_size_for_family(family));
+        result_ptr = (char*)result;
+        FOREACH_IFR(ifr, ifc) {
             if (ifr->ifr_name[0] == '\0')
+                continue;
+
+            if (ignore_loopback && ifr->ifr_name[0] == 2)
             {
-                (*nips)--;
+                --if_count;
                 continue;
             }
 
-            if (ignore_loopback && is_loopback(family, ((uint8_t*)&ifr->ifr_addr) + offset))
-            {
-                (*nips)--;
-                continue;
-            }
-
-            memcpy(tmp_ptr, ((uint8_t*)&ifr->ifr_addr) + offset, addr_size);
-            tmp_ptr += addr_size;
+            memcpy(result_ptr, get_address_from_sockaddr(&ifr->ifr_addr), address_size_for_family(family));
+            result_ptr += address_size_for_family(family);
         }
+        IL2CPP_ASSERT(result_ptr <= (char*)result + if_count * address_size_for_family(family));
 
+    done:
+        *interface_count = if_count;
         free(ifc.ifc_buf);
-        return (struct in_addr *)result;
+        close(fd);
+        return (struct in_addr*)result;
     }
 
     static bool hostent_get_info(struct hostent *he, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list)
@@ -289,6 +426,7 @@ namespace os
     {
         if (add_local_ips)
         {
+            bool any_local_ips_added = false;
             int nlocal_in = 0;
             int nlocal_in6 = 0;
             in_addr* local_in = (struct in_addr *)get_local_ips(AF_INET, &nlocal_in);
@@ -302,6 +440,7 @@ namespace os
                         char addr[16];
                         inet_ntop(AF_INET, &local_in[i], addr, sizeof(addr));
                         addr_list.push_back(std::string(addr));
+                        any_local_ips_added = true;
                     }
                 }
 
@@ -312,13 +451,19 @@ namespace os
                         char addr[48];
                         const char* ret = inet_ntop(AF_INET6, &local_in6[i], addr, sizeof(addr));
                         if (ret != NULL)
+                        {
                             addr_list.push_back(std::string(addr));
+                            any_local_ips_added = true;
+                        }
                     }
                 }
             }
 
             free(local_in);
             free(local_in6);
+
+            if (any_local_ips_added)
+                return;
         }
 
         bool nameSet = false;
@@ -354,6 +499,15 @@ namespace os
 
     WaitStatus GetAddressInfo(const char* hostname, bool add_local_ips, std::string &name, std::vector<std::string> &addr_list)
     {
+        NetworkAccessHandler::Auto scopedAccess;
+        if (!is_loopback(hostname) || add_local_ips)
+        {
+            if (!scopedAccess.RequestAccessForAddressInfo(SocketImpl::is_private(hostname)))
+            {
+                return kWaitStatusFailure;
+            }
+        }
+
         addrinfo *info = NULL;
 
         addrinfo hints;
@@ -383,6 +537,15 @@ namespace os
 
     WaitStatus SocketImpl::GetHostByAddr(const std::string &address, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list)
     {
+        NetworkAccessHandler::Auto scopedAccess;
+        if (!is_loopback(address.c_str()))
+        {
+            if (!scopedAccess.RequestAccessForAddressInfo(is_private(address.c_str())))
+            {
+                return kWaitStatusFailure;
+            }
+        }
+
 #if IL2CPP_SUPPORT_IPV6
         struct sockaddr_in saddr;
         struct sockaddr_in6 saddr6;
@@ -415,8 +578,8 @@ namespace os
             saddr.sin_len = sizeof(saddr);
 #endif
             if (getnameinfo((struct sockaddr*)&saddr, sizeof(saddr),
-                    hostname, sizeof(hostname), NULL, 0,
-                    flags) != 0)
+                hostname, sizeof(hostname), NULL, 0,
+                flags) != 0)
             {
                 return kWaitStatusFailure;
             }
@@ -427,8 +590,8 @@ namespace os
             saddr6.sin6_len = sizeof(saddr6);
 #endif
             if (getnameinfo((struct sockaddr*)&saddr6, sizeof(saddr6),
-                    hostname, sizeof(hostname), NULL, 0,
-                    flags) != 0)
+                hostname, sizeof(hostname), NULL, 0,
+                flags) != 0)
             {
                 return kWaitStatusFailure;
             }
@@ -456,7 +619,7 @@ namespace os
 #endif
     }
 
-    WaitStatus SocketImpl::GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list)
+    WaitStatus SocketImpl::GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addresses)
     {
         char this_hostname[256] = {0};
 
@@ -470,7 +633,7 @@ namespace os
         }
 
 #if IL2CPP_SUPPORT_IPV6
-        return GetAddressInfo(hostname, add_local_ips, name, addr_list);
+        return GetAddressInfo(hostname, add_local_ips, name, addresses);
 #else
         struct hostent *he = NULL;
         if (*hostname)
@@ -480,11 +643,65 @@ namespace os
             return kWaitStatusFailure;
 
         return (add_local_ips
-                ? hostent_get_info_with_local_ips(he, name, aliases, addr_list)
-                : hostent_get_info(he, name, aliases, addr_list))
+            ? hostent_get_info_with_local_ips(he, name, aliases, addresses)
+            : hostent_get_info(he, name, aliases, addresses))
             ? kWaitStatusSuccess
             : kWaitStatusFailure;
 #endif
+    }
+
+    static bool HasAnyIPv4Addresses(const std::vector<std::string>& addresses)
+    {
+        for (std::vector<std::string>::const_iterator it = addresses.begin(); it != addresses.end(); ++it)
+        {
+            in_addr address;
+            if (inet_pton(AF_INET, it->c_str(), &address))
+                return true;
+        }
+
+        return false;
+    }
+
+    WaitStatus SocketImpl::GetHostByName(const std::string &host, std::string &name, int32_t &family, std::vector<std::string> &aliases, std::vector<void*> &addr_list, int32_t &addr_size)
+    {
+        std::vector<std::string> addresses;
+        WaitStatus result = GetHostByName(host, name, aliases, addresses);
+
+        // If we got an IPv4 address, use that and any others, skipping IPv6 addresses.
+        // We can only return one address size, so we need to choose.
+        if (HasAnyIPv4Addresses(addresses))
+        {
+            addr_size = sizeof(in_addr);
+            family = AF_INET;
+            for (std::vector<std::string>::iterator it = addresses.begin(); it != addresses.end(); ++it)
+            {
+                in_addr address;
+                if (inet_pton(family, it->c_str(), &address))
+                {
+                    void* addressLocation = il2cpp::utils::Memory::Malloc(addr_size);
+                    memcpy(addressLocation, &address.s_addr, addr_size);
+                    addr_list.push_back(addressLocation);
+                }
+            }
+        }
+#if IL2CPP_SUPPORT_IPV6
+        else
+        {
+            addr_size = sizeof(in6_addr);
+            family = AF_INET6;
+            for (std::vector<std::string>::iterator it = addresses.begin(); it != addresses.end(); ++it)
+            {
+                in6_addr address;
+                if (inet_pton(family, it->c_str(), &address))
+                {
+                    void* addressLocation = il2cpp::utils::Memory::Malloc(addr_size);
+                    memcpy(addressLocation, &address.s6_addr, addr_size);
+                    addr_list.push_back(addressLocation);
+                }
+            }
+        }
+#endif
+        return result;
     }
 
     WaitStatus SocketImpl::GetHostName(std::string &name)
@@ -735,6 +952,8 @@ namespace os
 
         _is_valid = true;
 
+        _networkAccess.InheritNetworkAccessState(_fd);
+
         return kWaitStatusSuccess;
     }
 
@@ -746,6 +965,8 @@ namespace os
         _domain = family;
         _type = type;
         _protocol = protocol;
+
+        _networkAccess.InheritNetworkAccessState(_fd);
 
         IL2CPP_ASSERT(_type != -1 && "Unsupported socket type");
         IL2CPP_ASSERT(_domain != -1 && "Unsupported address family");
@@ -770,6 +991,8 @@ namespace os
         _domain = -1;
         _type = -1;
         _protocol = -1;
+
+        _networkAccess.CancelNetworkAccess();
 
         return kWaitStatusSuccess;
     }
@@ -945,6 +1168,12 @@ namespace os
 
         sockaddr_from_address(inet_addr(address), htons(port), &sa, &sa_size);
 
+        if (!_networkAccess.PrepareForBind(_fd, &sa, sa_size))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
+
         if (bind(_fd, &sa, sa_size) == -1)
         {
             StoreLastError();
@@ -960,6 +1189,12 @@ namespace os
         socklen_t sa_size = 0;
 
         sockaddr_from_address(htonl(address), htons(port), &sa, &sa_size);
+
+        if (!_networkAccess.PrepareForBind(_fd, &sa, sa_size))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
 
         if (bind(_fd, &sa, sa_size) == -1)
         {
@@ -978,6 +1213,12 @@ namespace os
 
         sockaddr_from_address(address, scope, htons(port), &sa, &sa_size);
 
+        if (!_networkAccess.PrepareForBind(_fd, &sa, sa_size))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
+
         if (bind(_fd, (sockaddr*)&sa, sa_size) == -1)
         {
             StoreLastError();
@@ -993,6 +1234,12 @@ namespace os
 
     WaitStatus SocketImpl::ConnectInternal(struct sockaddr *sa, int32_t sa_size)
     {
+        if (!_networkAccess.PrepareForConnect(_fd, sa, sa_size))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
+
         if (connect(_fd, sa, (socklen_t)sa_size) != -1)
             return kWaitStatusSuccess;
 
@@ -1233,6 +1480,12 @@ namespace os
     {
         int32_t ret = 0;
 
+        if (!_networkAccess.WaitForNetworkStatus(_fd))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
+
         do
         {
             ret = (int32_t)recvfrom(_fd, (void*)data, count, flags, from, (socklen_t*)fromlen);
@@ -1313,6 +1566,7 @@ namespace os
 
     WaitStatus SocketImpl::SendArray(WSABuf *wsabufs, int32_t count, int32_t *sent, SocketFlags flags)
     {
+#if IL2CPP_SUPPORT_SEND_MSG
         int32_t c_flags = convert_socket_flags(flags);
 
         if (c_flags == -1)
@@ -1358,10 +1612,48 @@ namespace os
         *sent = ret;
 
         return kWaitStatusSuccess;
+#else
+        if (sent != NULL)
+        {
+            *sent = 0; // Sent bytes.
+        }
+
+        if (wsabufs == NULL && count > 0)
+        {
+            _saved_error = kErrorInvalidFunction;
+            return kWaitStatusFailure;
+        }
+
+        int32_t c_flags = convert_socket_flags(flags);
+
+        for (int32_t i = 0; i < count; ++i)
+        {
+            ssize_t ret = 0;
+            do
+            {
+                ret = send(_fd, wsabufs[i].buffer, wsabufs[i].length, c_flags);
+            }
+            while (ret == EINTR);
+
+            if (ret == -1)
+            {
+                StoreLastError();
+                return kWaitStatusFailure;
+            }
+
+            if (sent != NULL)
+            {
+                *sent += ret;
+            }
+        }
+
+        return kWaitStatusSuccess;
+#endif
     }
 
     WaitStatus SocketImpl::ReceiveArray(WSABuf *wsabufs, int32_t count, int32_t *len, SocketFlags flags)
     {
+#if IL2CPP_SUPPORT_RECV_MSG
         const int32_t c_flags = convert_socket_flags(flags);
 
         if (c_flags == -1)
@@ -1413,6 +1705,52 @@ namespace os
         *len = ret;
 
         return kWaitStatusSuccess;
+#else
+        if (len != NULL)
+        {
+            *len = 0;
+        }
+
+        if (wsabufs == NULL && count > 0)
+        {
+            _saved_error = kErrorInvalidFunction;
+            return kWaitStatusFailure;
+        }
+
+        int32_t c_flags = convert_socket_flags(flags);
+
+        for (int32_t i = 0; i < count; ++i)
+        {
+            int32_t ret = 0;
+            do
+            {
+                ret = recvfrom(_fd, wsabufs[i].buffer, wsabufs[i].length, c_flags, NULL, NULL);
+            }
+            while (ret == EINTR);
+
+            if (ret == 0 && count > 0)
+            {
+                if (_still_readable != 1)
+                {
+                    _saved_error = SocketErrnoToErrorCode(EINTR);
+                    return kWaitStatusFailure;
+                }
+            }
+
+            if (ret == -1)
+            {
+                StoreLastError();
+                return kWaitStatusFailure;
+            }
+
+            if (len != NULL)
+            {
+                *len += ret;
+            }
+        }
+
+        return kWaitStatusSuccess;
+#endif
     }
 
     WaitStatus SocketImpl::SendToInternal(struct sockaddr *sa, int32_t sa_size, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len)
@@ -1428,6 +1766,12 @@ namespace os
 #if IL2CPP_USE_SEND_NOSIGNAL
         c_flags |= MSG_NOSIGNAL;
 #endif
+
+        if (!_networkAccess.RequestNetwork(_fd, sa, sa_size))
+        {
+            StoreLastError(_networkAccess.GetError());
+            return kWaitStatusFailure;
+        }
 
         int32_t ret = 0;
 
@@ -1651,43 +1995,62 @@ namespace os
     {
         IL2CPP_ASSERT(command != 0xC8000006 /* SIO_GET_EXTENSION_FUNCTION_POINTER */ && "SIO_GET_EXTENSION_FUNCTION_POINTER ioctl command not supported");
 
-        uint8_t *buffer = NULL;
-
-        if (in_len > 0)
+        if (command == 0x98000004 /* SIO_KEEPALIVE_VALS */)
         {
-            buffer = (uint8_t*)malloc(in_len);
-            memcpy(buffer, in_data, in_len);
+            if (in_len < 3 * sizeof(uint32_t))
+            {
+                StoreLastError();
+                return kWaitStatusFailure;
+            }
+
+            uint32_t onoff = *((uint32_t*)in_data);
+            int32_t ret = setsockopt(_fd, SOL_SOCKET, SO_KEEPALIVE, &onoff, sizeof(uint32_t));
+            if (ret < 0)
+            {
+                StoreLastError();
+                return kWaitStatusFailure;
+            }
         }
-
-        const int32_t ret = ioctl(_fd, command, buffer);
-        if (ret == -1)
+        else
         {
-            StoreLastError();
+            uint8_t *buffer = NULL;
+
+            if (in_len > 0)
+            {
+                buffer = (uint8_t*)malloc(in_len);
+                memcpy(buffer, in_data, in_len);
+            }
+
+            const int32_t ret = ioctl(_fd, command, buffer);
+            if (ret == -1)
+            {
+                StoreLastError();
+
+                free(buffer);
+
+                return kWaitStatusFailure;
+            }
+
+            if (buffer == NULL)
+            {
+                *written = 0;
+                return kWaitStatusSuccess;
+            }
+
+            // We just copy the buffer to the out_data. Some ioctls
+            // don't even out_data any data, but, well ...
+            //
+            // NB: windows returns WSAEFAULT if out_len is too small
+
+            const int32_t len = (in_len > out_len) ? out_len : in_len;
+
+            if (len > 0 && out_data != NULL)
+                memcpy(out_data, buffer, len);
 
             free(buffer);
 
-            return kWaitStatusFailure;
+            *written = len;
         }
-
-        if (buffer == NULL)
-        {
-            *written = 0;
-            return kWaitStatusSuccess;
-        }
-
-        // We just copy the buffer to the out_data. Some ioctls
-        // don't even out_data any data, but, well ...
-        //
-        // NB: windows returns WSAEFAULT if out_len is too small
-
-        const int32_t len = (in_len > out_len) ? out_len : in_len;
-
-        if (len > 0 && out_data != NULL)
-            memcpy(out_data, buffer, len);
-
-        free(buffer);
-
-        *written = len;
 
         return kWaitStatusSuccess;
     }
@@ -1881,7 +2244,7 @@ namespace os
                 break;
 #if IL2CPP_SUPPORT_IPV6
             case kSocketOptionLevelIPv6:
-        #ifdef SOL_IP
+        #ifdef SOL_IPV6
                 *system_level = SOL_IPV6;
         #else
                 *system_level = IPPROTO_IPV6;
@@ -1907,13 +2270,13 @@ namespace os
                     case kSocketOptionNamePacketInformation:
 #ifdef HAVE_IPV6_PKTINFO
                         *system_name = IPV6_PKTINFO;
-#endif
                         break;
+#endif
                     case kSocketOptionNameIPv6Only:
 #ifdef IPV6_V6ONLY
                         *system_name = IPV6_V6ONLY;
-#endif
                         break;
+#endif
                     case kSocketOptionNameHeaderIncluded:
                     case kSocketOptionNameIPOptions:
                     case kSocketOptionNameTypeOfService:
@@ -2320,7 +2683,7 @@ namespace os
         return SetSocketOptionInternal(system_level, system_name, &mreq, sizeof(mreq));
     }
 
-#if IL2CPP_TARGET_DARWIN
+#if IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_LINUX
     #include <sys/types.h>
     #include <ifaddrs.h>
     #include <sys/socket.h>
@@ -2378,7 +2741,7 @@ namespace os
             in6addr.s6_addr[i] = ipv6.addr[i];
         mreq6.ipv6mr_multiaddr = in6addr;
 
-#if IL2CPP_TARGET_DARWIN
+#if IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_LINUX
         if (interfaceOffset == 0)
             interfaceOffset = get_local_interface_id(AF_INET6);
 #endif
@@ -2432,8 +2795,32 @@ namespace os
         return kWaitStatusSuccess;
     }
 
+#if IL2CPP_SUPPORT_IPV6_SUPPORT_QUERY
+    bool SocketImpl::IsIPv6Supported()
+    {
+        ifaddrs* interfaces;
+        if (getifaddrs(&interfaces))
+            return false;
+
+        bool ipv6IsSupported = false;
+        for (ifaddrs* iface = interfaces; iface != NULL; iface = iface->ifa_next)
+        {
+            if (iface->ifa_addr && iface->ifa_addr->sa_family == AF_INET6)
+            {
+                ipv6IsSupported = true;
+                break;
+            }
+        }
+
+        freeifaddrs(interfaces);
+        return ipv6IsSupported;
+    }
+
+#endif
+
     WaitStatus SocketImpl::SendFile(const char *filename, TransmitFileBuffers *buffers, TransmitFileOptions options)
     {
+#if IL2CPP_SUPPORT_SEND_FILE
         int32_t file = open(filename, O_RDONLY);
 
         if (file == -1)
@@ -2520,6 +2907,9 @@ namespace os
         }
 
         return kWaitStatusSuccess;
+#else
+        return kWaitStatusFailure;
+#endif
     }
 }
 }

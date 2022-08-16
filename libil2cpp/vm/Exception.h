@@ -1,9 +1,9 @@
 #pragma once
 
 #include <stdint.h>
-#include <string>
 #include "il2cpp-config.h"
 #include "utils/StringView.h"
+#include "il2cpp-class-internals.h"
 
 struct Il2CppException;
 struct Il2CppImage;
@@ -13,12 +13,15 @@ namespace il2cpp
 {
 namespace vm
 {
+    class TypeNameParseInfo;
+
     class LIBIL2CPP_CODEGEN_API Exception
     {
 // exported
     public:
         static Il2CppException* Get(il2cpp_hresult_t hresult, bool defaultToCOMException);
 
+        static void PrepareExceptionForThrow(Il2CppException* ex, MethodInfo* lastManagedFrame = NULL);
         static NORETURN void Raise(Il2CppException* ex, MethodInfo* lastManagedFrame = NULL);
         static NORETURN void RaiseOutOfMemoryException();
         static NORETURN void RaiseOutOfMemoryException(const utils::StringView<Il2CppChar>& msg);
@@ -53,6 +56,9 @@ namespace vm
         static Il2CppException* GetInvalidCastException(const char* msg);
         static Il2CppException* GetInvalidCastException(const utils::StringView<Il2CppChar>& msg);
         static Il2CppException* GetTypeLoadException();
+        static Il2CppException* GetTypeLoadException(const TypeNameParseInfo& typeNameParseInfo);
+        static Il2CppException* GetTypeLoadException(const utils::StringView<char>& namespaze, const utils::StringView<char>& typeName, const utils::StringView<char>& assemblyName);
+        static Il2CppException* GetTypeLoadExceptionForWindowsRuntimeType(const utils::StringView<char>& namespaze, const utils::StringView<char>& typeName);
         static Il2CppException* GetOutOfMemoryException(const utils::StringView<Il2CppChar>& msg);
         static Il2CppException* GetOverflowException();
         static Il2CppException* GetOverflowException(const char* msg);
@@ -77,6 +83,7 @@ namespace vm
         static Il2CppException* GetDivideByZeroException();
         static Il2CppException* GetPlatformNotSupportedException(const utils::StringView<Il2CppChar>& msg);
         static Il2CppException* GetFileLoadException(const char* msg);
+        static Il2CppException* GetFileNotFoundException(const utils::StringView<Il2CppChar>& msg);
 
         static Il2CppException* GetMaxmimumNestedGenericsException();
 

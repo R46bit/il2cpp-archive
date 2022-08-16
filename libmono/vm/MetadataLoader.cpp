@@ -1,9 +1,9 @@
 #include "il2cpp-config.h"
 #include "MetadataLoader.h"
 #include "os/File.h"
-#include "os/MemoryMappedFile.h"
 #include "os/Mutex.h"
 #include "utils/PathUtils.h"
+#include "utils/MemoryMappedFile.h"
 #include "utils/StringUtils.h"
 #include "utils/Runtime.h"
 
@@ -23,12 +23,12 @@ void* MetadataLoader::LoadMetadataFile(const char* fileName)
     if (error != 0)
         return NULL;
 
-    void* fileBuffer = il2cpp::os::MemoryMappedFile::Map(handle);
+    void* fileBuffer = il2cpp::utils::MemoryMappedFile::Map(handle);
 
     il2cpp::os::File::Close(handle, &error);
     if (error != 0)
     {
-        il2cpp::os::MemoryMappedFile::Unmap(fileBuffer);
+        il2cpp::utils::MemoryMappedFile::Unmap(fileBuffer);
         fileBuffer = NULL;
         return NULL;
     }

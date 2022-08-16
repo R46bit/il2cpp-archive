@@ -13,14 +13,17 @@
 #undef CreatePipe
 
 #include "os/File.h"
-#include "vm/Exception.h"
 #include "utils/StringUtils.h"
 #include "utils/PathUtils.h"
 #include "il2cpp-vm-support.h"
 
+#if IL2CPP_TARGET_WINRT
+#include "os/WinRT/BrokeredFileSystem.h"
+#endif
+
 #include <stdint.h>
 
-static inline int Win32ErrorToErrorCode(DWORD win32ErrorCode)
+static inline int FileWin32ErrorToErrorCode(DWORD win32ErrorCode)
 {
     return win32ErrorCode;
 }
@@ -37,6 +40,17 @@ namespace os
         return GetConsoleMode((HANDLE)fileHandle, &mode) != 0;
     }
 
+#elif IL2CPP_TARGET_WINDOWS_GAMES
+    bool File::Isatty(FileHandle* fileHandle)
+    {
+        IL2CPP_VM_NOT_SUPPORTED("Isatty", "Console functions are not supported on Windows Games platforms.");
+        return false;
+    }
+
+#endif
+
+#if IL2CPP_TARGET_WINDOWS_DESKTOP || IL2CPP_TARGET_WINDOWS_GAMES
+
     FileHandle* File::GetStdInput()
     {
         return (FileHandle*)GetStdHandle(STD_INPUT_HANDLE);
@@ -52,7 +66,7 @@ namespace os
         return (FileHandle*)GetStdHandle(STD_OUTPUT_HANDLE);
     }
 
-#endif
+#endif // IL2CPP_TARGET_WINDOWS_DESKTOP || IL2CPP_TARGET_WINDOWS_GAMES
 
     bool File::CreatePipe(FileHandle** read_handle, FileHandle** write_handle)
     {
@@ -62,7 +76,7 @@ namespace os
 
     bool File::CreatePipe(FileHandle** read_handle, FileHandle** write_handle, int* error)
     {
-#if IL2CPP_TARGET_WINDOWS_DESKTOP
+#if IL2CPP_TARGET_WINDOWS_DESKTOP || IL2CPP_TARGET_WINDOWS_GAMES
         SECURITY_ATTRIBUTES attr;
 
         attr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -79,12 +93,13 @@ namespace os
         }
 
         return true;
-#else
-        vm::Exception::Raise(vm::Exception::GetNotSupportedException("Pipes are not supported on WinRT based platforms."));
-#endif
+#else // IL2CPP_TARGET_WINDOWS_DESKTOP || IL2CPP_TARGET_WINDOWS_GAMES
+        IL2CPP_VM_NOT_SUPPORTED("CreatePipe", "Pipes are not supported on WinRT based platforms.");
+        return false;
+#endif // IL2CPP_TARGET_WINDOWS_DESKTOP || IL2CPP_TARGET_WINDOWS_GAMES
     }
 
-#if !IL2CPP_TARGET_XBOXONE
+#if !IL2CPP_TARGET_XBOXONE && !IL2CPP_TARGET_WINDOWS_GAMES
     UnityPalFileAttributes File::GetFileAttributes(const std::string& path, int *error)
     {
         const UTF16String utf16Path(utils::StringUtils::Utf8ToUtf16(path.c_str()));
@@ -93,7 +108,14 @@ namespace os
         BOOL result = ::GetFileAttributesExW((LPCWSTR)utf16Path.c_str(), GetFileExInfoStandard, &fileAttributes);
         if (result == FALSE)
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+            if (lastError == ERROR_ACCESS_DENIED)
+                return BrokeredFileSystem::GetFileAttributesW(utf16Path, error);
+#endif
+
+            *error = FileWin32ErrorToErrorCode(lastError);
             return static_cast<UnityPalFileAttributes>(INVALID_FILE_ATTRIBUTES);
         }
 
@@ -101,18 +123,24 @@ namespace os
         return static_cast<UnityPalFileAttributes>(fileAttributes.dwFileAttributes);
     }
 
-#endif
+#endif // !IL2CPP_TARGET_XBOXONE && !IL2CPP_TARGET_WINDOWS_GAMES
 
     bool File::SetFileAttributes(const std::string& path, UnityPalFileAttributes attributes, int* error)
     {
         const UTF16String utf16Path(utils::StringUtils::Utf8ToUtf16(path.c_str()));
 
         *error = kErrorCodeSuccess;
-
         if (::SetFileAttributesW((LPCWSTR)utf16Path.c_str(), attributes))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+        if (lastError == ERROR_ACCESS_DENIED)
+            return BrokeredFileSystem::SetFileAttributesW(utf16Path, attributes, error);
+#endif
+
+        *error = FileWin32ErrorToErrorCode(lastError);
         return false;
     }
 
@@ -134,7 +162,14 @@ namespace os
         WIN32_FILE_ATTRIBUTE_DATA data;
         if (!::GetFileAttributesExW((LPCWSTR)utf16Path.c_str(), GetFileExInfoStandard, &data))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+            if (lastError == ERROR_ACCESS_DENIED)
+                return BrokeredFileSystem::GetFileStat(path, utf16Path, stat, error);
+#endif
+
+            *error = FileWin32ErrorToErrorCode(lastError);
             return false;
         }
 
@@ -167,7 +202,14 @@ namespace os
         if (::CopyFileW((LPWSTR)utf16Src.c_str(), (LPWSTR)utf16Dest.c_str(), overwrite ? FALSE : TRUE))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+        if (lastError == ERROR_ACCESS_DENIED)
+            return BrokeredFileSystem::CopyFileW(utf16Src, utf16Dest, overwrite, error);
+#endif
+
+        *error = FileWin32ErrorToErrorCode(lastError);
         return false;
     }
 
@@ -181,7 +223,14 @@ namespace os
         if (::MoveFileExW((LPWSTR)utf16Src.c_str(), (LPWSTR)utf16Dest.c_str(), MOVEFILE_COPY_ALLOWED))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+        if (lastError == ERROR_ACCESS_DENIED)
+            return BrokeredFileSystem::MoveFileW(utf16Src, utf16Dest, error);
+#endif
+
+        *error = FileWin32ErrorToErrorCode(lastError);
         return false;
     }
 
@@ -192,7 +241,17 @@ namespace os
         if (::DeleteFileW((LPWSTR)utf16Path.c_str()))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        auto lastError = ::GetLastError();
+
+#if IL2CPP_TARGET_WINRT
+        if (lastError == ERROR_ACCESS_DENIED)
+        {
+            *error = BrokeredFileSystem::DeleteFileW(utf16Path);
+            return *error == kErrorCodeSuccess;
+        }
+#endif
+
+        *error = FileWin32ErrorToErrorCode(lastError);
         return false;
     }
 
@@ -211,7 +270,7 @@ namespace os
         if (::ReplaceFileW((LPWSTR)utf16Dest.c_str(), (LPWSTR)utf16Src.c_str(), utf16Backup.empty() ? NULL : (LPWSTR)utf16Backup.c_str(), flags, NULL, NULL))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        *error = FileWin32ErrorToErrorCode(::GetLastError());
         return false;
     }
 
@@ -251,8 +310,14 @@ namespace os
             case kFileAccessWrite:
                 return GENERIC_WRITE;
 
+            case kFileAccessExecute:
+                return GENERIC_EXECUTE;
+
             case kFileAccessReadWrite:
                 return GENERIC_READ | GENERIC_WRITE;
+
+            case kFileAccessReadWriteExecute:
+                return GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE;
 
             default:
                 return 0;
@@ -263,17 +328,26 @@ namespace os
     {
         DWORD flagsAndAttributes;
 
-        if (options & kFileOptionsEncrypted)
+        if (options != 0)
         {
-            flagsAndAttributes = FILE_ATTRIBUTE_ENCRYPTED;
+            if (options & kFileOptionsEncrypted)
+                flagsAndAttributes = FILE_ATTRIBUTE_ENCRYPTED;
+            else
+                flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
+            if (options & kFileOptionsDeleteOnClose)
+                flagsAndAttributes |= FILE_FLAG_DELETE_ON_CLOSE;
+            if (options & kFileOptionsSequentialScan)
+                flagsAndAttributes |= FILE_FLAG_SEQUENTIAL_SCAN;
+            if (options & kFileOptionsRandomAccess)
+                flagsAndAttributes |= FILE_FLAG_RANDOM_ACCESS;
+
+            if (options & kFileOptionsWriteThrough)
+                flagsAndAttributes |= FILE_FLAG_WRITE_THROUGH;
         }
         else
         {
             flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
         }
-
-        // Temporary flag does not mean temporary file.
-        flagsAndAttributes |= options & ~(kFileOptionsEncrypted | kFileOptionsTemporary);
 
         int error;
         UnityPalFileAttributes currentAttributes = File::GetFileAttributes(path, &error);
@@ -296,7 +370,13 @@ namespace os
 
         if (INVALID_HANDLE_VALUE == handle)
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            auto lastError = ::GetLastError();
+#if IL2CPP_TARGET_WINRT
+            if (lastError == ERROR_ACCESS_DENIED)
+                return BrokeredFileSystem::Open(utf16Path, accessMode, shareMode, openMode, flagsAndAttributes, error);
+#endif
+
+            *error = FileWin32ErrorToErrorCode(lastError);
             return (FileHandle*)INVALID_HANDLE_VALUE;
         }
 
@@ -310,7 +390,7 @@ namespace os
         if (CloseHandle((HANDLE)handle))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        *error = FileWin32ErrorToErrorCode(::GetLastError());
         return false;
     }
 
@@ -340,7 +420,7 @@ namespace os
         LARGE_INTEGER size;
         if (!::GetFileSizeEx((HANDLE)handle, &size))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return 0;
         }
         return size.QuadPart;
@@ -352,7 +432,7 @@ namespace os
         *error = kErrorCodeSuccess;
         if (!::SetEndOfFile((HANDLE)handle))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return false;
         }
         return true;
@@ -371,28 +451,28 @@ namespace os
         // set position to 0 from current to retrieve current position
         if (!::SetFilePointerEx((HANDLE)handle, zeroOffset, &initialPosition, FILE_CURRENT))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return false;
         }
 
         // seek to requested length
         if (!::SetFilePointerEx((HANDLE)handle, requestedOffset, NULL, FILE_BEGIN))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return false;
         }
 
         // set requested length
         if (!::SetEndOfFile((HANDLE)handle))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return false;
         }
 
         // restore original position
         if (!::SetFilePointerEx((HANDLE)handle, initialPosition, NULL, FILE_BEGIN))
         {
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
             return false;
         }
 
@@ -406,7 +486,7 @@ namespace os
         distance.QuadPart = offset;
         LARGE_INTEGER position = { 0 };
         if (!::SetFilePointerEx((HANDLE)handle, distance, &position, origin))
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
 
         return position.QuadPart;
     }
@@ -416,7 +496,7 @@ namespace os
         *error = kErrorCodeSuccess;
         DWORD bytesRead = 0;
         if (!::ReadFile(handle, dest, count, &bytesRead, NULL))
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
 
 #if IL2CPP_ENABLE_PROFILER
         IL2CPP_VM_PROFILE_FILEIO(IL2CPP_PROFILE_FILEIO_READ, count);
@@ -427,16 +507,41 @@ namespace os
 
     int32_t File::Write(FileHandle* handle, const char* buffer, int count, int *error)
     {
-        int32_t result;
         int32_t written;
 
-        result = WriteFile((HANDLE)handle, buffer, count, (LPDWORD)&written, NULL);
+        BOOL success = WriteFile((HANDLE)handle, buffer, count, (LPDWORD)&written, NULL);
 
-        /*if (!result)
+        if (!success)
         {
-            *error = GetLastError ();
-            return -1;
-        }*/
+            DWORD originalError = GetLastError();
+            if (originalError == ERROR_INVALID_PARAMETER)
+            {
+                // Maybe this is an async file write, so try with those parameters.
+                OVERLAPPED overlapped = {0};
+                success = WriteFile((HANDLE)handle, buffer, count, NULL, &overlapped);
+                if (success != 0 || GetLastError() == ERROR_IO_PENDING)
+                {
+                    success = TRUE;
+                    // The async write succeeded. Now get the number of bytes written.
+#if IL2CPP_TARGET_WINDOWS_DESKTOP
+                    if (GetOverlappedResult((HANDLE)handle, &overlapped, (LPDWORD)&written, TRUE) == 0)
+#else
+                    if (GetOverlappedResultEx((HANDLE)handle, &overlapped, (LPDWORD)&written, INFINITE, FALSE) == 0)
+#endif
+                    {
+                        // Oops, we could not get the number of bytes writen, so return an error.
+                        *error = GetLastError();
+                        return -1;
+                    }
+                }
+            }
+
+            if (!success)
+            {
+                *error = originalError;
+                return -1;
+            }
+        }
 #if IL2CPP_ENABLE_PROFILER
         IL2CPP_VM_PROFILE_FILEIO(IL2CPP_PROFILE_FILEIO_WRITE, count);
 #endif
@@ -450,7 +555,7 @@ namespace os
         if (FlushFileBuffers((HANDLE)handle))
             return true;
 
-        *error = Win32ErrorToErrorCode(::GetLastError());
+        *error = FileWin32ErrorToErrorCode(::GetLastError());
 
         return false;
     }
@@ -469,7 +574,7 @@ namespace os
         lengthUnion.QuadPart = length;
 
         if (!::LockFileEx((HANDLE)handle, LOCKFILE_FAIL_IMMEDIATELY, 0, lengthUnion.LowPart, lengthUnion.HighPart, &overlapped))
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
     }
 
     void File::Unlock(FileHandle* handle,  int64_t position, int64_t length, int* error)
@@ -486,7 +591,7 @@ namespace os
         lengthUnion.QuadPart = length;
 
         if (!::UnlockFileEx((HANDLE)handle, 0, lengthUnion.LowPart, lengthUnion.HighPart, &overlapped))
-            *error = Win32ErrorToErrorCode(::GetLastError());
+            *error = FileWin32ErrorToErrorCode(::GetLastError());
     }
 
     bool File::DuplicateHandle(FileHandle* source_process_handle, FileHandle* source_handle, FileHandle* target_process_handle,

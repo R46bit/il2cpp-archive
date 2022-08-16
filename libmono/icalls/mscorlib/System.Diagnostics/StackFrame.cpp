@@ -1,6 +1,7 @@
 #include "il2cpp-config.h"
 #include "icalls/mscorlib/System.Diagnostics/StackFrame.h"
 #include "vm/StackTrace.h"
+#include "gc/GarbageCollector.h"
 
 using namespace mono::vm;
 
@@ -72,8 +73,8 @@ namespace Diagnostics
 
         const MonoStackFrameInfo& info = stack[static_cast<size_t>(index)];
 
-        //NOT_IMPLEMENTED_ICALL_NO_ASSERT (StackFrame::get_frame_info, "use gc write barrier");
         *method = mono_unity_method_get_object(const_cast<MonoMethod*>(info.method));
+        il2cpp::gc::GarbageCollector::SetWriteBarrier((void**)method);
 
         return true;
     }

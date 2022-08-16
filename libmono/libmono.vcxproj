@@ -115,17 +115,26 @@
     <ClCompile Include="icalls\mscorlib\System.Diagnostics\StackTrace.cpp" />
     <ClCompile Include="mono-initialization.cpp" />
     <ClCompile Include="mono-stubs.cpp" />
+    <ClCompile Include="vm\MetadataCache.cpp" />
+    <ClCompile Include="vm\MetadataLoader.cpp" />
     <ClCompile Include="vm\PlatformInvoke.cpp" />
     <ClCompile Include="vm\StackTrace.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="config\config.h" />
+    <ClInclude Include="config\eglib-config.h" />
+    <ClInclude Include="config\il2cpp-config-mono-win.h" />
+    <ClInclude Include="config\il2cpp-config-mono.h" />
     <ClInclude Include="icalls\mscorlib\System.Diagnostics\StackFrame.h" />
     <ClInclude Include="icalls\mscorlib\System.Diagnostics\StackTrace.h" />
     <ClInclude Include="mono-api.h" />
+    <ClInclude Include="vm\MetadataCache.h" />
+    <ClInclude Include="vm\MetadataLoader.h" />
     <ClInclude Include="vm\PlatformInvoke.h" />
     <ClInclude Include="vm\StackTrace.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="config\eglib-config.hw" />
     <None Include="mono-api.def" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -501,7 +510,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -524,7 +533,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -547,7 +556,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -570,7 +579,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -593,7 +602,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -616,7 +625,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -639,7 +648,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -662,7 +671,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -684,8 +693,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -707,8 +717,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;NET_4_0=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -730,8 +741,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -753,8 +765,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=0;NET_4_0=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -777,7 +790,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;IL2CPP_DEBUGGER_LOG=1;IL2CPP_UNIT_TESTS_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -800,7 +813,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;IL2CPP_DEBUGGER_LOG=1;IL2CPP_UNIT_TESTS_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -822,8 +835,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;IL2CPP_DEBUGGER_LOG=1;IL2CPP_UNIT_TESTS_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;IL2CPP_DEBUGGER_ENABLED=1;IL2CPP_DEBUGGER_LOG=1;IL2CPP_UNIT_TESTS_ENABLED=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -848,7 +862,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -870,7 +884,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -892,7 +906,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -914,7 +928,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -936,7 +950,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -958,7 +972,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -980,7 +994,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -1002,7 +1016,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -1023,8 +1037,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -1045,8 +1060,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -1067,8 +1083,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>
@@ -1089,8 +1106,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>.\..\external\boehmgc\include;.\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_LIB;NET_4_0=1;%(PreprocessorDefinitions);
+IL2CPP_MONO_DEBUGGER=1</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\..\external\bdwgc\include;.\</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/we4002 %(AdditionalOptions)</AdditionalOptions>

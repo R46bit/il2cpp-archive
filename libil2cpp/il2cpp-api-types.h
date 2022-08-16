@@ -3,28 +3,34 @@
 #include <stdint.h>
 #include <stddef.h>
 
-struct Il2CppClass;
-struct Il2CppType;
-struct EventInfo;
-struct MethodInfo;
-struct FieldInfo;
-struct PropertyInfo;
+#if !defined(__cplusplus)
+#define bool uint8_t
+#endif // !__cplusplus
 
-struct Il2CppAssembly;
-struct Il2CppArray;
-struct Il2CppDelegate;
-struct Il2CppDomain;
-struct Il2CppImage;
-struct Il2CppException;
-struct Il2CppProfiler;
-struct Il2CppObject;
-struct Il2CppReflectionMethod;
-struct Il2CppReflectionType;
-struct Il2CppString;
-struct Il2CppThread;
-struct Il2CppAsyncResult;
+typedef struct Il2CppClass Il2CppClass;
+typedef struct Il2CppType Il2CppType;
+typedef struct EventInfo EventInfo;
+typedef struct MethodInfo MethodInfo;
+typedef struct FieldInfo FieldInfo;
+typedef struct PropertyInfo PropertyInfo;
 
-enum Il2CppProfileFlags
+typedef struct Il2CppAssembly Il2CppAssembly;
+typedef struct Il2CppArray Il2CppArray;
+typedef struct Il2CppDelegate Il2CppDelegate;
+typedef struct Il2CppDomain Il2CppDomain;
+typedef struct Il2CppImage Il2CppImage;
+typedef struct Il2CppException Il2CppException;
+typedef struct Il2CppProfiler Il2CppProfiler;
+typedef struct Il2CppObject Il2CppObject;
+typedef struct Il2CppReflectionMethod Il2CppReflectionMethod;
+typedef struct Il2CppReflectionType Il2CppReflectionType;
+typedef struct Il2CppString Il2CppString;
+typedef struct Il2CppThread Il2CppThread;
+typedef struct Il2CppAsyncResult Il2CppAsyncResult;
+typedef struct Il2CppManagedMemorySnapshot Il2CppManagedMemorySnapshot;
+typedef struct Il2CppCustomAttrInfo Il2CppCustomAttrInfo;
+
+typedef enum
 {
     IL2CPP_PROFILE_NONE = 0,
     IL2CPP_PROFILE_APPDOMAIN_EVENTS = 1 << 0,
@@ -48,15 +54,15 @@ enum Il2CppProfileFlags
     IL2CPP_PROFILE_IOMAP_EVENTS     = 1 << 18, /* this should likely be removed, too */
     IL2CPP_PROFILE_GC_MOVES         = 1 << 19,
     IL2CPP_PROFILE_FILEIO           = 1 << 20
-};
+} Il2CppProfileFlags;
 
-enum Il2CppProfileFileIOKind
+typedef enum
 {
     IL2CPP_PROFILE_FILEIO_WRITE = 0,
     IL2CPP_PROFILE_FILEIO_READ
-};
+} Il2CppProfileFileIOKind;
 
-enum Il2CppGCEvent
+typedef enum
 {
     IL2CPP_GC_EVENT_START,
     IL2CPP_GC_EVENT_MARK_START,
@@ -68,9 +74,9 @@ enum Il2CppGCEvent
     IL2CPP_GC_EVENT_POST_STOP_WORLD,
     IL2CPP_GC_EVENT_PRE_START_WORLD,
     IL2CPP_GC_EVENT_POST_START_WORLD
-};
+} Il2CppGCEvent;
 
-enum Il2CppStat
+typedef enum
 {
     IL2CPP_STAT_NEW_OBJECT_COUNT,
     IL2CPP_STAT_INITIALIZED_CLASS_COUNT,
@@ -88,18 +94,27 @@ enum Il2CppStat
     //IL2CPP_STAT_MAJOR_GC_COUNT,
     //IL2CPP_STAT_MINOR_GC_TIME_USECS,
     //IL2CPP_STAT_MAJOR_GC_TIME_USECS
-};
+} Il2CppStat;
 
-enum Il2CppRuntimeUnhandledExceptionPolicy
+typedef enum
 {
     IL2CPP_UNHANDLED_POLICY_LEGACY,
     IL2CPP_UNHANDLED_POLICY_CURRENT
-};
+} Il2CppRuntimeUnhandledExceptionPolicy;
 
-struct Il2CppStackFrameInfo
+typedef struct Il2CppStackFrameInfo
 {
     const MethodInfo *method;
-};
+} Il2CppStackFrameInfo;
+
+typedef void(*Il2CppMethodPointer)();
+
+typedef struct Il2CppMethodDebugInfo
+{
+    Il2CppMethodPointer methodPointer;
+    int32_t code_size;
+    const char *file;
+} Il2CppMethodDebugInfo;
 
 typedef struct
 {
@@ -111,6 +126,17 @@ typedef struct
     void* (*realloc_func)(void *ptr, size_t size);
     void* (*aligned_realloc_func)(void *ptr, size_t size, size_t alignment);
 } Il2CppMemoryCallbacks;
+
+typedef struct
+{
+    const char *name;
+    void(*connect)(const char *address);
+    int(*wait_for_attach)(void);
+    void(*close1)(void);
+    void(*close2)(void);
+    int(*send)(void *buf, int len);
+    int(*recv)(void *buf, int len);
+} Il2CppDebuggerTransport;
 
 #if !__SNC__ // SNC doesn't like the following define: "warning 1576: predefined meaning of __has_feature discarded"
 #ifndef __has_feature // clang specific __has_feature check
@@ -143,12 +169,14 @@ typedef void (*Il2CppProfileAllocFunc) (Il2CppProfiler* prof, Il2CppObject *obj,
 typedef void (*Il2CppProfileGCFunc) (Il2CppProfiler* prof, Il2CppGCEvent event, int generation);
 typedef void (*Il2CppProfileGCResizeFunc) (Il2CppProfiler* prof, int64_t new_size);
 typedef void (*Il2CppProfileFileIOFunc) (Il2CppProfiler* prof, Il2CppProfileFileIOKind kind, int count);
+typedef void (*Il2CppProfileThreadFunc) (Il2CppProfiler *prof, unsigned long tid);
 
 typedef const Il2CppNativeChar* (*Il2CppSetFindPlugInCallback)(const Il2CppNativeChar*);
 typedef void (*Il2CppLogCallback)(const char*);
 
+typedef size_t(*Il2CppBacktraceFunc) (Il2CppMethodPointer* buffer, size_t maxSize);
+
 struct Il2CppManagedMemorySnapshot;
 
-typedef void (*Il2CppMethodPointer)();
 typedef uintptr_t il2cpp_array_size_t;
 #define ARRAY_LENGTH_AS_INT32(a) ((int32_t)a)

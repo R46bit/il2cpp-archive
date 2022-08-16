@@ -1,15 +1,9 @@
 #include "il2cpp-config.h"
-#include <math.h>
+#include <cmath>
 #include <limits>
 #include <float.h>
 #include "icalls/mscorlib/System/Math.h"
 #include "vm/Exception.h"
-
-#ifdef _MSC_VER
-# define ISNAN _isnan
-#else
-# define ISNAN isnan
-#endif
 
 namespace il2cpp
 {
@@ -61,7 +55,7 @@ namespace System
 
     double Math::Log(double x)
     {
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(Math::Log, "Determin what value of NAN to use");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(Math::Log, "Determin what value of NAN to use");
 
         if (x == 0)
             return -HUGE_VAL;
@@ -77,10 +71,39 @@ namespace System
         return log10(val);
     }
 
+    static bool IsInteger(double value)
+    {
+        double unused;
+        return std::modf(value, &unused) == 0.0;
+    }
+
     double Math::Pow(double val, double exp)
     {
+        if (std::isnan(val))
+            return val;
+        if (std::isnan(exp))
+            return exp;
+
+        if (val > -1 && val < 1 && exp == -std::numeric_limits<double>::infinity())
+            return std::numeric_limits<double>::infinity();
+
+        if (val > -1 && val < 1 && exp == std::numeric_limits<double>::infinity())
+            return 0.0;
+
+        if ((val < -1 || val > 1) && exp == -std::numeric_limits<double>::infinity())
+            return 0.0;
+
+        if ((val < -1 || val > 1) && exp == std::numeric_limits<double>::infinity())
+            return std::numeric_limits<double>::infinity();
+
+        if (val < 0)
+        {
+            if (!IsInteger(exp) || exp == std::numeric_limits<double>::infinity() || exp == -std::numeric_limits<double>::infinity())
+                return std::numeric_limits<double>::quiet_NaN();
+        }
+
         double res = pow(val, exp);
-        if (ISNAN(res))
+        if (std::isnan(res))
             return 1.0;
 
         if (res == -0.0)
@@ -154,7 +177,6 @@ namespace System
 #endif
     }
 
-#if NET_4_0
     double Math::Abs(double value)
     {
         return fabs(value);
@@ -174,8 +196,6 @@ namespace System
     {
         return fabsf(value);
     }
-
-#endif
 } /* namespace System */
 } /* namespace mscorlib */
 } /* namespace icalls */

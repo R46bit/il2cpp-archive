@@ -248,7 +248,6 @@
     <ClCompile Include="Statistics\HighLevelBreakdown.cpp" />
     <ClCompile Include="Statistics\TenLargestSymbols.cpp" />
     <ClCompile Include="SymbolInfoWriter.cpp" />
-    <ClCompile Include="Tests\Asserts.cpp" />
     <ClCompile Include="Tests\Clang\ClangMapFileParserTests.cpp" />
     <ClCompile Include="Tests\Clang\ClangSectionParserTests.cpp" />
     <ClCompile Include="Tests\Clang\ClangSymbolParserTests.cpp" />
@@ -286,7 +285,6 @@
     <ClInclude Include="Statistics\TenLargestSymbols.h" />
     <ClInclude Include="Symbol.h" />
     <ClInclude Include="SymbolInfoWriter.h" />
-    <ClInclude Include="Tests\Asserts.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -21,12 +21,14 @@ namespace vm
     public:
         static const Il2CppType* GetReturnType(const MethodInfo* method);
         static const char* GetName(const MethodInfo *method);
+        static std::string GetNameWithGenericTypes(const MethodInfo* method);
         static std::string GetFullName(const MethodInfo* method);
         static bool IsGeneric(const MethodInfo *method);
         static bool IsInflated(const MethodInfo *method);
         static bool IsInstance(const MethodInfo *method);
         static bool IsGenericInstance(const MethodInfo *method);
         static uint32_t GetParamCount(const MethodInfo *method);
+        static uint32_t GetGenericParamCount(const MethodInfo *method);
         static const Il2CppType* GetParam(const MethodInfo *method, uint32_t index);
         static Il2CppClass* GetClass(const MethodInfo *method);
         static bool HasAttribute(const MethodInfo *method, Il2CppClass *attr_class);

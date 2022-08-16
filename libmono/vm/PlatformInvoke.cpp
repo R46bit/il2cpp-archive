@@ -95,16 +95,13 @@ namespace vm
         return mono_string_new_utf16(g_MonoDomain, value, (int)il2cpp::utils::StringUtils::StrLen(value));
     }
 
-    char* PlatformInvoke::MarshalStringBuilder(MonoStringBuilder* stringBuilder)
+    char* PlatformInvoke::MarshalEmptyStringBuilder(MonoStringBuilder* stringBuilder, size_t& stringLength, std::vector<std::string>& utf8Chunks, std::vector<MonoStringBuilder*>& builders)
     {
         if (stringBuilder == NULL)
             return NULL;
 
-        size_t stringLength = 0;
+        stringLength = 0;
         MonoStringBuilder* currentBuilder = stringBuilder;
-
-        std::vector<std::string> utf8Chunks;
-        std::vector<MonoStringBuilder*> builders;
 
         while (true)
         {
@@ -131,6 +128,27 @@ namespace vm
         // chunk utf8String into the nativeString it won't fill everything and we can end up with w/e junk value was in that memory before
         memset(nativeString, 0, sizeof(char) * (stringLength + 1));
 
+        return nativeString;
+    }
+
+    char* PlatformInvoke::MarshalEmptyStringBuilder(MonoStringBuilder* stringBuilder)
+    {
+        size_t sizeLength;
+        std::vector<std::string> utf8Chunks;
+        std::vector<MonoStringBuilder*> builders;
+        return MarshalEmptyStringBuilder(stringBuilder, sizeLength, utf8Chunks, builders);
+    }
+
+    char* PlatformInvoke::MarshalStringBuilder(MonoStringBuilder* stringBuilder)
+    {
+        if (stringBuilder == NULL)
+            return NULL;
+
+        size_t stringLength;
+        std::vector<std::string> utf8Chunks;
+        std::vector<MonoStringBuilder*> builders;
+        char* nativeString = MarshalEmptyStringBuilder(stringBuilder, stringLength, utf8Chunks, builders);
+
         if (stringLength > 0)
         {
             int offsetAdjustment = 0;
@@ -149,12 +167,12 @@ namespace vm
         return nativeString;
     }
 
-    mono_unichar2* PlatformInvoke::MarshalWStringBuilder(MonoStringBuilder* stringBuilder)
+    mono_unichar2* PlatformInvoke::MarshalEmptyWStringBuilder(MonoStringBuilder* stringBuilder, size_t& stringLength)
     {
         if (stringBuilder == NULL)
             return NULL;
 
-        size_t stringLength = 0;
+        stringLength = 0;
         MonoStringBuilder* currentBuilder = stringBuilder;
         while (true)
         {
@@ -166,11 +184,26 @@ namespace vm
             currentBuilder = currentBuilder->chunkPrevious;
         }
 
-        mono_unichar2* nativeString = MarshalAllocateStringBuffer<mono_unichar2>(stringLength + 1);
+        return MarshalAllocateStringBuffer<mono_unichar2>(stringLength + 1);
+    }
+
+    mono_unichar2* PlatformInvoke::MarshalEmptyWStringBuilder(MonoStringBuilder* stringBuilder)
+    {
+        size_t stringLength;
+        return MarshalEmptyWStringBuilder(stringBuilder, stringLength);
+    }
+
+    mono_unichar2* PlatformInvoke::MarshalWStringBuilder(MonoStringBuilder* stringBuilder)
+    {
+        if (stringBuilder == NULL)
+            return NULL;
+
+        size_t stringLength;
+        mono_unichar2* nativeString = MarshalEmptyWStringBuilder(stringBuilder, stringLength);
 
         if (stringLength > 0)
         {
-            currentBuilder = stringBuilder;
+            MonoStringBuilder* currentBuilder = stringBuilder;
             while (true)
             {
                 if (currentBuilder == NULL)
@@ -227,17 +260,31 @@ namespace vm
         MONO_OBJECT_SETREF(stringBuilder, chunkPrevious, NULL);
     }
 
+    static int CompareIl2CppTokenIndexMethodTuple(const void* pkey, const void* pelem)
+    {
+        return (int)(((Il2CppTokenIndexMethodTuple*)pkey)->token - ((Il2CppTokenIndexMethodTuple*)pelem)->token);
+    }
+
     static Il2CppMethodPointer GetReversePInvokeWrapperFromIndex(MonoMethod* method)
     {
-        if (g_CodeRegistration.reversePInvokeWrappers == NULL)
+        Il2CppCodeGenModule* codeGenModule = InitializeCodeGenHandle(method->klass->image);
+
+        if (codeGenModule->reversePInvokeWrapperCount == 0)
             return NULL;
 
-        uint64_t hash = mono_unity_method_get_hash(method, true);
-        const MonoMethodMetadata* methodMetadata = MetadataCache::GetMonoMethodMetadataFromHash(hash);
-        if (methodMetadata && (methodMetadata->reversePInvokeWrapperIndex != kMethodIndexInvalid))
-            return g_CodeRegistration.reversePInvokeWrappers[methodMetadata->reversePInvokeWrapperIndex];
+        Il2CppTokenIndexMethodTuple key;
+        memset(&key, 0, sizeof(Il2CppTokenIndexMethodTuple));
+        key.token = method->token;
 
-        return NULL;
+        const Il2CppTokenIndexMethodTuple* res = (const Il2CppTokenIndexMethodTuple*)bsearch(&key, codeGenModule->reversePInvokeWrapperIndices, codeGenModule->reversePInvokeWrapperCount, sizeof(Il2CppTokenIndexMethodTuple), CompareIl2CppTokenIndexMethodTuple);
+
+        if (res == NULL)
+            return NULL;
+
+        uint32_t index = res->index;
+
+        assert(index < g_CodeRegistration.reversePInvokeWrapperCount);
+        return g_CodeRegistration.reversePInvokeWrappers[index];
     }
 
     intptr_t PlatformInvoke::MarshalDelegate(MonoDelegate* d)
@@ -289,7 +336,10 @@ namespace vm
         }
 
         MonoError unused;
-        mono_delegate_ctor_with_method((MonoObject*)delegate, delegate, (void*)managedToNativeWrapperMethodPointer, const_cast<MonoMethod*>(method), &unused);
+        // FIXME: do we need to free these handles?
+        MonoObjectHandle thisHandle = MONO_HANDLE_NEW(MonoObject, (MonoObject*)delegate);
+        MonoObjectHandle targetHandle = MONO_HANDLE_NEW(MonoObject, (MonoObject*)delegate);
+        gboolean success = mono_delegate_ctor_with_method(thisHandle, targetHandle, (void*)managedToNativeWrapperMethodPointer, const_cast<MonoMethod*>(method), &unused);
 
         return (Il2CppDelegate*)delegate;
     }

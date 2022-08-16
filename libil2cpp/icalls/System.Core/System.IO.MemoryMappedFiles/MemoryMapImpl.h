@@ -1,6 +1,5 @@
 #pragma once
 
-#if NET_4_0
 #include "il2cpp-object-internals.h"
 
 namespace il2cpp
@@ -26,7 +25,7 @@ namespace MemoryMappedFiles
         static intptr_t OpenHandleInternal(intptr_t handle, Il2CppString* mapName, int64_t* capacity, int32_t access, int32_t options, int32_t* error);
         static void CloseMapping(intptr_t handle);
         static void ConfigureHandleInheritability(intptr_t handle, int32_t inheritability);
-        static void Flush(intptr_t file_handle);
+        static void Flush(intptr_t mmap_handle);
     };
 } // namespace MemoryMappedFiles
 } // namespace IO
@@ -35,4 +34,3 @@ namespace MemoryMappedFiles
 } // namespace System
 } // namespace icalls
 } // namespace il2cpp
-#endif

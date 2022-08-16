@@ -7,6 +7,7 @@
 #include "../../File.h"
 #include "utils/StringUtils.h"
 #include "PathHelper.h"
+#include <set>
 
 SUITE(Directory)
 {
@@ -53,12 +54,13 @@ SUITE(Directory)
 
 // PS4 returns an empty directory, so the other UnityPalDirectoryGetCurrent tests are enough to confirm
 // the proper behavior.
-#if !IL2CPP_TARGET_PS4
+#if !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5
     TEST_FIXTURE(DirectoryFixture, GetCurrentDirectoryReturnsAStringOfSomeLength)
     {
         apiRetValue = UnityPalDirectoryGetCurrent(&error);
         CHECK(strlen(apiRetValue) > 0);
     }
+
 #endif
 
     TEST_FIXTURE(DirectoryFixture, GetCurrentDirectoryReturnsGoodError)
@@ -107,7 +109,7 @@ SUITE(Directory)
     }
 
 // On PS4, any string can be set as the current directory.
-#if !IL2CPP_TARGET_PS4
+#if !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5
     TEST_FIXTURE(DirectoryFixture, SetCurrentDirectoryWithGarbageReturnsFalse)
     {
         CHECK(!UnityPalDirectorySetCurrent(GARBAGE_PATH, &error));
@@ -120,6 +122,7 @@ SUITE(Directory)
 
         CHECK_NOT_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
+
 #else
     TEST_FIXTURE(DirectoryFixture, SetCurrentDirectoryWithGarbageReturnsTrue)
     {
@@ -133,6 +136,7 @@ SUITE(Directory)
 
         CHECK_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
+
 #endif
 
     TEST_FIXTURE(DirectoryFixture, ApiSetCurrentDirectoryWithGarbageReturnsSameAsClass)
@@ -402,7 +406,7 @@ SUITE(Directory)
 
     TEST_FIXTURE(FileSytemEntriesFixture, GetFileSystemEntriesReturnsThreeEntires)
     {
-#if IL2CPP_TARGET_PS4
+#if IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
         const int expectedNumEntries = 9; // PS4 has the test exectuable, src, test.map, and test.prx files in the current directory as well.
 #else
         const int expectedNumEntries = 3;
@@ -469,13 +473,9 @@ SUITE(Directory)
 
     TEST_FIXTURE(FileSytemEntriesFixture, FindFirstFileCorrectlyFillsInResultFileName)
     {
-#if IL2CPP_TARGET_PS4
-        const char* expectedFile = "src"; // PS4 has the test exectuable, src, and test.map files in the current directory as well.
-#else
-        const char* expectedFile = ".";
-#endif
-        testFind = UnityPalDirectoryFindHandleNew(TEST_PATTERN);
-        returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_PATTERN, &resultFileName, &resultAttributes);
+        const char* expectedFile = TEST_DIR_1;
+        testFind = UnityPalDirectoryFindHandleNew(TEST_DIR_1);
+        returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_DIR_1, &resultFileName, &resultAttributes);
         UnityPalDirectoryCloseOSHandle(testFind);
         CHECK_EQUAL(expectedFile, resultFileName);
     }
@@ -501,17 +501,23 @@ SUITE(Directory)
         // UnityPalDirectoryFindNextFile will find "."" and ".." , we need to hit it
         // a few times to grab a test dir name
 
-#if IL2CPP_TARGET_PS4
+#if IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
         const char* expectedFile = "test.map"; // PS4 has the test exectuable, src, and test.map files in the current directory as well.
 #else
         const char* expectedFile = TEST_DIR_1;
 #endif
         testFind = UnityPalDirectoryFindHandleNew(TEST_PATTERN);
+
+        std::set<std::string> foundFiles;
         returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_PATTERN, &resultFileName, &resultAttributes);
-        returnErrorCode = UnityPalDirectoryFindNextFile(testFind, &nextResultFileName, &resultAttributes);
-        returnErrorCode = UnityPalDirectoryFindNextFile(testFind, &thirdResultFileName, &resultAttributes);
+        while (returnErrorCode == il2cpp::os::kErrorCodeSuccess)
+        {
+            foundFiles.insert(resultFileName);
+            returnErrorCode = UnityPalDirectoryFindNextFile(testFind, &resultFileName, &resultAttributes);
+        }
+
         UnityPalDirectoryCloseOSHandle(testFind);
-        CHECK_EQUAL(expectedFile, thirdResultFileName);
+        CHECK(foundFiles.find(expectedFile) != foundFiles.end());
     }
 
     TEST_FIXTURE(FileSytemEntriesFixture, FindNextFileResultAttributesAreValid)
@@ -532,15 +538,14 @@ SUITE(Directory)
         CHECK_EQUAL(il2cpp::os::kErrorCodeSuccess, returnErrorCode);
     }
 
-
     TEST_FIXTURE(FileSytemEntriesFixture, FindFirstFileMatchesClass)
     {
         testFind = UnityPalDirectoryFindHandleNew(TEST_PATTERN);
         returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_PATTERN, &resultFileName, &resultAttributes);
         UnityPalDirectoryCloseOSHandle(testFind);
         Il2CppNativeString pattern(il2cpp::utils::StringUtils::Utf8ToNativeString(TEST_PATTERN));
-        il2cpp::os::Directory::FindHandle classFindHandle(pattern);
-        il2cpp::os::Directory::FindFirstFile(&classFindHandle, pattern, &classFileName, &resultAttributes);
+        il2cpp::os::Directory::FindHandle classFindHandle(STRING_TO_STRINGVIEW(pattern));
+        il2cpp::os::Directory::FindFirstFile(&classFindHandle, STRING_TO_STRINGVIEW(pattern), &classFileName, &resultAttributes);
         classFindHandle.CloseOSHandle();
         CHECK_EQUAL(il2cpp::utils::StringUtils::NativeStringToUtf8(classFileName).c_str(), resultFileName);
     }
@@ -551,8 +556,8 @@ SUITE(Directory)
         returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_PATTERN, &resultFileName, &resultAttributes);
         UnityPalDirectoryCloseOSHandle(testFind);
         Il2CppNativeString pattern(il2cpp::utils::StringUtils::Utf8ToNativeString(TEST_PATTERN));
-        il2cpp::os::Directory::FindHandle classFindHandle(pattern);
-        il2cpp::os::Directory::FindFirstFile(&classFindHandle, pattern, &classFileName, &compareResultAttributes);
+        il2cpp::os::Directory::FindHandle classFindHandle(STRING_TO_STRINGVIEW(pattern));
+        il2cpp::os::Directory::FindFirstFile(&classFindHandle, STRING_TO_STRINGVIEW(pattern), &classFileName, &compareResultAttributes);
         classFindHandle.CloseOSHandle();
         CHECK_EQUAL(compareResultAttributes, resultAttributes);
     }
@@ -563,8 +568,8 @@ SUITE(Directory)
         returnErrorCode = UnityPalDirectoryFindFirstFile(testFind, TEST_PATTERN, &resultFileName, &resultAttributes);
         UnityPalDirectoryCloseOSHandle(testFind);
         Il2CppNativeString pattern(il2cpp::utils::StringUtils::Utf8ToNativeString(TEST_PATTERN));
-        il2cpp::os::Directory::FindHandle classFindHandle(pattern);
-        compareReturnErrorCode = il2cpp::os::Directory::FindFirstFile(&classFindHandle, pattern, &classFileName, &compareResultAttributes);
+        il2cpp::os::Directory::FindHandle classFindHandle(STRING_TO_STRINGVIEW(pattern));
+        compareReturnErrorCode = il2cpp::os::Directory::FindFirstFile(&classFindHandle, STRING_TO_STRINGVIEW(pattern), &classFileName, &compareResultAttributes);
         classFindHandle.CloseOSHandle();
         CHECK_EQUAL(compareReturnErrorCode, returnErrorCode);
     }
@@ -576,8 +581,8 @@ SUITE(Directory)
         UnityPalDirectoryFindNextFile(testFind, &nextResultFileName, &resultAttributes);
         UnityPalDirectoryCloseOSHandle(testFind);
         Il2CppNativeString pattern(il2cpp::utils::StringUtils::Utf8ToNativeString(TEST_PATTERN));
-        il2cpp::os::Directory::FindHandle classFindHandle(pattern);
-        il2cpp::os::Directory::FindFirstFile(&classFindHandle, pattern, &classFileName, &compareResultAttributes);
+        il2cpp::os::Directory::FindHandle classFindHandle(STRING_TO_STRINGVIEW(pattern));
+        il2cpp::os::Directory::FindFirstFile(&classFindHandle, STRING_TO_STRINGVIEW(pattern), &classFileName, &compareResultAttributes);
         il2cpp::os::Directory::FindNextFile(&classFindHandle, &classFileName, &compareResultAttributes);
         classFindHandle.CloseOSHandle();
         CHECK_EQUAL(il2cpp::utils::StringUtils::NativeStringToUtf8(classFileName).c_str(), nextResultFileName);

@@ -33,7 +33,6 @@ namespace vm
         {
             std::string name;
             std::string culture;
-            std::string hash_value;
             std::string public_key;
             char public_key_token[kPublicKeyTokenLength];
             uint32_t hash_alg;
@@ -124,6 +123,11 @@ namespace vm
             return false;
         }
 
+        void SetAssemblyName(const AssemblyName& assemblyName)
+        {
+            _assembly_name = assemblyName;
+        }
+
     private:
 
         std::string _namespace;
@@ -140,7 +144,7 @@ namespace vm
     {
     public:
 
-        TypeNameParser(std::string &name, TypeNameParseInfo &info, bool is_nested);
+        TypeNameParser(const std::string &name, TypeNameParseInfo &info, bool is_nested);
         TypeNameParser(std::string::const_iterator &begin, std::string::const_iterator &end, TypeNameParseInfo &info, bool is_nested);
 
         bool Parse(bool acceptAssemblyName = true);
@@ -204,6 +208,7 @@ namespace vm
     {
     public:
         // exported
+        static void GetNameChunkedRecurse(const Il2CppType * type, Il2CppTypeNameFormat format, void(*reportFunc)(void *data, void *userData), void * userData);
         static std::string GetName(const Il2CppType *type, Il2CppTypeNameFormat format);
         static int GetType(const Il2CppType *type);
         static Il2CppClass* GetClassOrElementClass(const Il2CppType *type);
@@ -212,9 +217,12 @@ namespace vm
         static bool IsGenericInstance(const Il2CppType *type);
         static Il2CppReflectionType* GetDeclaringType(const Il2CppType* type);
         static Il2CppArray* GetGenericArgumentsInternal(Il2CppReflectionType* type, bool runtimeArray);
+        static bool IsEqualToType(const Il2CppType *type, const Il2CppType *otherType);
+        static Il2CppReflectionType* GetTypeFromHandle(intptr_t handle);
 
     public:
         // internal
+        static void GetNameChunkedRecurseInternal(const Il2CppType * type, Il2CppTypeNameFormat format, bool is_nested, void(*reportFunc)(void *data, void *userData), void * userData);
         static void GetNameInternal(std::string &oss, const Il2CppType *type, Il2CppTypeNameFormat format, bool is_nested);
         static bool IsReference(const Il2CppType* type);
         static bool IsStruct(const Il2CppType* type);
@@ -230,6 +238,7 @@ namespace vm
 
         static Il2CppClass* GetClass(const Il2CppType *type);
         static const Il2CppGenericParameter* GetGenericParameter(const Il2CppType *type);
+        static const Il2CppType* GetGenericTypeDefintion(const Il2CppType* type);
 
         static void ConstructDelegate(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr, const MethodInfo* method);
 

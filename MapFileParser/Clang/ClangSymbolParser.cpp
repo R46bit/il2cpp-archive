@@ -18,7 +18,7 @@ namespace mapfileparser
         if (fieldsParsed != 4)
             throw std::runtime_error(std::string("Unable to parse symbol: ") + line);
 
-        ClangSymbol symbol = { { address, length, name.buffer, "" }, objectFileIndex };
+        ClangSymbol symbol = { { address, length, name.buffer, "", kSegmentTypeCode }, objectFileIndex };
         return symbol;
     }
 }

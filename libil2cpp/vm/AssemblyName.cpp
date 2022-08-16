@@ -99,47 +99,11 @@ namespace vm
         return char(hexValue + 87);
     }
 
-#if NET_4_0
-
-    uint8_t* EncodeStringBlob(const char* original)
-    {
-        size_t stringLength = strlen(original);
-        uint32_t sizeForLength;
-        uint8_t encodedLength[4];
-
-        if (stringLength < 0x80)
-        {
-            sizeForLength = 1;
-            encodedLength[0] = static_cast<uint8_t>(stringLength);
-        }
-        else if (stringLength < 0x4000)
-        {
-            sizeForLength = 2;
-            encodedLength[0] = static_cast<uint8_t>(stringLength >> 8) | 0x80;
-            encodedLength[1] = static_cast<uint8_t>(stringLength & 0xFF);
-        }
-        else
-        {
-            sizeForLength = 4;
-            encodedLength[0] = static_cast<uint8_t>(stringLength >> 24) | 0xC0;
-            encodedLength[1] = static_cast<uint8_t>((stringLength >> 16) & 0xFF);
-            encodedLength[2] = static_cast<uint8_t>((stringLength >> 8) & 0xFF);
-            encodedLength[3] = static_cast<uint8_t>(stringLength & 0xFF);
-        }
-
-        uint8_t* result = static_cast<uint8_t*>(IL2CPP_MALLOC(stringLength + sizeForLength + 1));
-
-        memcpy(result, encodedLength, sizeForLength);
-        strncpy(reinterpret_cast<char*>(result + sizeForLength), original, stringLength + 1);
-        return result;
-    }
-
     void AssemblyName::FillNativeAssemblyName(const Il2CppAssemblyName& aname, Il2CppMonoAssemblyName* nativeName)
     {
-        nativeName->name = il2cpp::utils::StringUtils::StringDuplicate(il2cpp::vm::MetadataCache::GetStringFromIndex(aname.nameIndex));
-        nativeName->culture = il2cpp::utils::StringUtils::StringDuplicate(il2cpp::vm::MetadataCache::GetStringFromIndex(aname.cultureIndex));
-        nativeName->hash_value = il2cpp::utils::StringUtils::StringDuplicate(il2cpp::vm::MetadataCache::GetStringFromIndex(aname.hashValueIndex));
-        nativeName->public_key = EncodeStringBlob(il2cpp::vm::MetadataCache::GetStringFromIndex(aname.publicKeyIndex));
+        nativeName->name = il2cpp::utils::StringUtils::StringDuplicate(aname.name);
+        nativeName->culture = il2cpp::utils::StringUtils::StringDuplicate(aname.culture);
+        nativeName->public_key = aname.public_key != NULL ? aname.public_key : NULL;
         nativeName->hash_alg = aname.hash_alg;
         nativeName->hash_len = aname.hash_len;
         nativeName->flags = aname.flags;
@@ -149,27 +113,42 @@ namespace vm
         nativeName->revision = aname.revision;
 
         //Mono public key token is stored as hexadecimal characters
-        if (aname.publicKeyToken[0])
+        if (aname.public_key_token[0])
         {
             int j = 0;
             for (int i = 0; i < kPublicKeyByteLength; ++i)
             {
-                uint8_t value = aname.publicKeyToken[i];
+                uint8_t value = aname.public_key_token[i];
                 nativeName->public_key_token.padding[j++] = HexValueToLowercaseAscii((value & 0xF0) >> 4);
                 nativeName->public_key_token.padding[j++] = HexValueToLowercaseAscii(value & 0x0F);
             }
         }
     }
 
-#endif
+    static void PublicKeyTokenToCStringChunk(const uint8_t* public_key_token, void (*chunkReportFunc)(void* data, void* userData), void* userData)
+    {
+        char result[kPublicKeyByteLength * 2];
+        memset(result, 0x00, kPublicKeyByteLength * 2);
 
-    static std::string PublicKeyTokenToString(const uint8_t* publicKeyToken)
+        for (int i = 0; i < kPublicKeyByteLength; ++i)
+        {
+            uint8_t hi = (public_key_token[i] & 0xF0) >> 4;
+            uint8_t lo = public_key_token[i] & 0x0F;
+
+            result[i * 2] = HexValueToLowercaseAscii(hi);
+            result[i * 2 + 1] = HexValueToLowercaseAscii(lo);
+        }
+
+        chunkReportFunc(result, userData);
+    }
+
+    static std::string PublicKeyTokenToString(const uint8_t* public_key_token)
     {
         std::string result(kPublicKeyByteLength * 2, '0');
         for (int i = 0; i < kPublicKeyByteLength; ++i)
         {
-            uint8_t hi = (publicKeyToken[i] & 0xF0) >> 4;
-            uint8_t lo = publicKeyToken[i] & 0x0F;
+            uint8_t hi = (public_key_token[i] & 0xF0) >> 4;
+            uint8_t lo = public_key_token[i] & 0x0F;
 
             result[i * 2] = HexValueToLowercaseAscii(hi);
             result[i * 2 + 1] = HexValueToLowercaseAscii(lo);
@@ -178,13 +157,53 @@ namespace vm
         return result;
     }
 
+    void AssemblyName::AssemblyNameReportChunked(const Il2CppAssemblyName& aname, void(*chunkReportFunction)(void* data, void* userData), void* userData)
+    {
+        char buffer[1024];
+        const char* literalPtr = NULL;
+
+        chunkReportFunction(const_cast<char*>(aname.name), userData);
+        literalPtr = ", Version=";
+        chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        sprintf(buffer, "%d%s", aname.major, ".");
+        chunkReportFunction(buffer, userData);
+        sprintf(buffer, "%d%s", aname.minor, ".");
+        chunkReportFunction(buffer, userData);
+        sprintf(buffer, "%d%s", aname.build, ".");
+        chunkReportFunction(buffer, userData);
+        sprintf(buffer, "%d", aname.build);
+        chunkReportFunction(buffer, userData);
+        sprintf(buffer, "%d", aname.revision);
+        chunkReportFunction(buffer, userData);
+        literalPtr = ", Culture=";
+        chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        chunkReportFunction(const_cast<char*>((aname.culture != NULL && strlen(aname.culture) != 0 ? aname.culture : "neutral")), userData);
+        literalPtr = ", PublicKeyToken=";
+        chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        if (aname.public_key_token[0])
+            PublicKeyTokenToCStringChunk(aname.public_key_token, chunkReportFunction, userData);
+        else
+        {
+            literalPtr = "null";
+            chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        }
+
+        literalPtr = (aname.flags & ASSEMBLYREF_RETARGETABLE_FLAG) ? ", Retargetable=Yes" : "";
+        chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        if (strcmp(aname.name, "WindowsRuntimeMetadata") == 0)
+        {
+            literalPtr = ", ContentType=WindowsRuntime";
+            chunkReportFunction(const_cast<char*>(literalPtr), userData);
+        }
+    }
+
     std::string AssemblyName::AssemblyNameToString(const Il2CppAssemblyName& aname)
     {
         std::string name;
 
         char buffer[1024];
 
-        name += MetadataCache::GetStringFromIndex(aname.nameIndex);
+        name += aname.name;
         name += ", Version=";
         sprintf(buffer, "%d", aname.major);
         name += buffer;
@@ -198,10 +217,15 @@ namespace vm
         sprintf(buffer, "%d", aname.revision);
         name += buffer;
         name += ", Culture=";
-        name += (aname.cultureIndex != kStringLiteralIndexInvalid ? MetadataCache::GetStringFromIndex(aname.cultureIndex) : "neutral");
+        const char* culture = NULL;
+        culture = aname.culture;
+        name += (culture != NULL && strlen(culture) != 0 ? culture : "neutral");
         name += ", PublicKeyToken=";
-        name += (aname.publicKeyToken[0] ? PublicKeyTokenToString(aname.publicKeyToken) : "null");
+        name += (aname.public_key_token[0] ? PublicKeyTokenToString(aname.public_key_token) : "null");
         name += ((aname.flags & ASSEMBLYREF_RETARGETABLE_FLAG) ? ", Retargetable=Yes" : "");
+
+        if (strcmp(aname.name, "WindowsRuntimeMetadata") == 0)
+            name += ", ContentType=WindowsRuntime";
 
         return name;
     }

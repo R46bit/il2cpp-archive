@@ -41,12 +41,12 @@ void* il2cpp::gc::GarbageCollector::MakeDescriptorForArray()
 
 void il2cpp::gc::GarbageCollector::StopWorld()
 {
-    NOT_IMPLEMENTED(il2cpp::gc::GarbageCollector::StopWorld);
+    IL2CPP_NOT_IMPLEMENTED(il2cpp::gc::GarbageCollector::StopWorld);
 }
 
 void il2cpp::gc::GarbageCollector::StartWorld()
 {
-    NOT_IMPLEMENTED(il2cpp::gc::GarbageCollector::StartWorld);
+    IL2CPP_NOT_IMPLEMENTED(il2cpp::gc::GarbageCollector::StartWorld);
 }
 
 void
@@ -123,6 +123,12 @@ il2cpp::gc::GarbageCollector::Disable()
 {
 }
 
+bool
+il2cpp::gc::GarbageCollector::IsDisabled()
+{
+    return true;
+}
+
 int64_t
 il2cpp::gc::GarbageCollector::GetUsedHeapSize(void)
 {
@@ -159,6 +165,23 @@ size_t il2cpp::gc::GarbageCollector::GetSectionCount()
 void* il2cpp::gc::GarbageCollector::CallWithAllocLockHeld(GCCallWithAllocLockCallback callback, void* user_data)
 {
     return callback(user_data);
+}
+
+int64_t
+il2cpp::gc::GarbageCollector::GetMaxTimeSliceNs()
+{
+    return 0;
+}
+
+void
+il2cpp::gc::GarbageCollector::SetMaxTimeSliceNs(int64_t maxTimeSlice)
+{
+}
+
+bool
+il2cpp::gc::GarbageCollector::IsIncremental()
+{
+    return false;
 }
 
 #endif

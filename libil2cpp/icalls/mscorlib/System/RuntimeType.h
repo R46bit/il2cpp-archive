@@ -1,8 +1,7 @@
 #pragma once
 
-#if NET_4_0
-
 struct Il2CppReflectionRuntimeType;
+struct mscorlib_System_Reflection_MethodInfo;
 
 #include "il2cpp-object-internals.h"
 
@@ -51,10 +50,11 @@ namespace System
         static intptr_t GetMethodsByName_native(Il2CppReflectionRuntimeType* thisPtr, intptr_t namePtr, int32_t bindingAttr, bool ignoreCase);
         static intptr_t GetNestedTypes_native(Il2CppReflectionRuntimeType* thisPtr, intptr_t name, int32_t bindingAttr);
         static intptr_t GetPropertiesByName_native(Il2CppReflectionRuntimeType* thisPtr, intptr_t name, int32_t bindingAttr, bool icase);
+
+        static void* /* System.Reflection.ConstructorInfo */ GetCorrespondingInflatedConstructor(void* /* System.MonoType */ self, void* /* System.Reflection.ConstructorInfo */ genericInfo);
+        static mscorlib_System_Reflection_MethodInfo* GetCorrespondingInflatedMethod(Il2CppReflectionMonoType*, Il2CppReflectionMonoType*);
     };
 } // namespace System
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-
-#endif

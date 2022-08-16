@@ -6,8 +6,6 @@
 #include "vm/Reflection.h"
 #include "vm/Exception.h"
 
-using namespace il2cpp::vm;
-
 namespace il2cpp
 {
 namespace icalls
@@ -20,7 +18,7 @@ namespace Reflection
 {
     void MonoMethodInfo::get_method_info(intptr_t methodPtr, Il2CppMethodInfo *info)
     {
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoMethodInfo::get_method_info, "Audit and look over commented code. Work in progress.");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoMethodInfo::get_method_info, "Audit and look over commented code. Work in progress.");
 
         MethodInfo* method = (MethodInfo*)methodPtr;
         //MonoMethodSignature* sig;
@@ -31,7 +29,7 @@ namespace Reflection
         //  mono_raise_exception (mono_loader_error_prepare_exception (mono_loader_get_last_error ()));
         //}
 
-        IL2CPP_STRUCT_SETREF(info, parent, il2cpp::vm::Reflection::GetTypeObject(method->declaring_type->byval_arg));
+        IL2CPP_STRUCT_SETREF(info, parent, il2cpp::vm::Reflection::GetTypeObject(&method->klass->byval_arg));
         if (method->return_type)
             IL2CPP_STRUCT_SETREF(info, ret, il2cpp::vm::Reflection::GetTypeObject(method->return_type));
         info->attrs = method->flags;
@@ -50,24 +48,21 @@ namespace Reflection
     Il2CppArray * MonoMethodInfo::get_parameter_info(intptr_t methodPtr, Il2CppReflectionMethod *member)
     {
         MethodInfo* method = (MethodInfo*)methodPtr;
-        return il2cpp::vm::Reflection::GetParamObjects(method, member->reftype ? Class::FromIl2CppType(member->reftype->type) : NULL);
+        return il2cpp::vm::Reflection::GetParamObjects(method, member->reftype ? vm::Class::FromIl2CppType(member->reftype->type) : NULL);
     }
 
     void* /* System.Reflection.Emit.UnmanagedMarshal */ MonoMethodInfo::get_retval_marshal(intptr_t handle)
     {
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoMethodInfo::get_retval_marshal, "This icall is not supported by il2cpp.");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoMethodInfo::get_retval_marshal, "This icall is not supported by il2cpp.");
 
         return NULL;
     }
 
-#if NET_4_0
     int32_t MonoMethodInfo::get_method_attributes(intptr_t methodPtr)
     {
         MethodInfo* method = (MethodInfo*)methodPtr;
         return method->flags;
     }
-
-#endif
 } /* namespace Reflection */
 } /* namespace System */
 } /* namespace mscorlib */

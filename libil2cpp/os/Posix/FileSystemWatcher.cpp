@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if !IL2CPP_USE_GENERIC_ENVIRONMENT && IL2CPP_TARGET_POSIX
+#if !IL2CPP_USE_GENERIC_ENVIRONMENT && IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
 
 #include <cassert>
 #include "os/FileSystemWatcher.h"
@@ -16,7 +16,7 @@ namespace FileSystemWatcher
 #if IL2CPP_TARGET_IOS
         return 0; // Not supported on iOS
 #else
-        NOT_IMPLEMENTED_ICALL(FileSystemWatcher::IsSupported);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(FileSystemWatcher::IsSupported);
         return 0;
 #endif
     }

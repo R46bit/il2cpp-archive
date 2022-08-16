@@ -103,9 +103,6 @@
     <ClCompile Include="Tests\Statistics\TenLargestSymbolsTests.cpp">
       <Filter>Tests\Statistics</Filter>
     </ClCompile>
-    <ClCompile Include="Tests\Asserts.cpp">
-      <Filter>Tests</Filter>
-    </ClCompile>
     <ClCompile Include="Statistics\AllSymbolSizes.cpp">
       <Filter>Statistics</Filter>
     </ClCompile>
@@ -161,9 +158,6 @@
     </ClInclude>
     <ClInclude Include="Statistics\TenLargestSymbols.h">
       <Filter>Statistics</Filter>
-    </ClInclude>
-    <ClInclude Include="Tests\Asserts.h">
-      <Filter>Tests</Filter>
     </ClInclude>
     <ClInclude Include="Statistics\AllSymbolSizes.h">
       <Filter>Statistics</Filter>

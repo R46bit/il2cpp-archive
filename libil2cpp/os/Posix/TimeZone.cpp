@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if IL2CPP_TARGET_POSIX
+#if IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
 
 #include "os/TimeZone.h"
 
@@ -15,7 +15,7 @@ namespace os
  * Magic number to convert a time which is relative to
  * Jan 1, 1970 into a value which is relative to Jan 1, 0001.
  */
-    const uint64_t EPOCH_ADJUST = ((uint64_t)62135596800LL);
+    const uint64_t TZ_EPOCH_ADJUST = ((uint64_t)62135596800LL);
 
     /*
     * Return's the offset from GMT of a local time.
@@ -38,13 +38,13 @@ namespace os
 #endif
     }
 
-    bool TimeZone::GetTimeZoneData(int32_t year, int64_t data[4], std::string names[2])
+    bool TimeZone::GetTimeZoneData(int32_t year, int64_t data[4], std::string names[2], bool* daylight_inverted)
     {
         struct tm start, tt;
         time_t t;
 
-        long int gmtoff;
-        int is_daylight = 0, day;
+        long int gmtoff, gmtoff_start;
+        int is_transitioned = 0, day;
         char tzone[64];
 
         /*
@@ -69,10 +69,14 @@ namespace os
             strftime(tzone, sizeof(tzone), "%Z", &tt);
             names[0] = tzone;
             names[1] = tzone;
+            *daylight_inverted = false;
             return true;
         }
 
+        *daylight_inverted = start.tm_isdst;
+
         gmtoff = GMTOffset(&start, t);
+        gmtoff_start = gmtoff;
 
         /* For each day of the year, calculate the tm_gmtoff. */
         for (day = 0; day < 365; day++)
@@ -106,28 +110,44 @@ namespace os
                 strftime(tzone, sizeof(tzone), "%Z", &tt);
 
                 /* Write data, if we're already in daylight saving, we're done. */
-                if (is_daylight)
+                if (is_transitioned)
                 {
-                    names[0] = tzone;
-                    data[1] = ((int64_t)t1 + EPOCH_ADJUST) * 10000000L;
+                    if (!start.tm_isdst)
+                        names[0] = tzone;
+                    else
+                        names[1] = tzone;
+
+                    data[1] = ((int64_t)t1 + TZ_EPOCH_ADJUST) * 10000000L;
                     return true;
                 }
                 else
                 {
-                    names[1] = tzone;
-                    data[0] = ((int64_t)t1 + EPOCH_ADJUST) * 10000000L;
-                    is_daylight = 1;
+                    if (!start.tm_isdst)
+                        names[1] = tzone;
+                    else
+                        names[0] = tzone;
+
+                    data[0] = ((int64_t)t1 + TZ_EPOCH_ADJUST) * 10000000L;
+                    is_transitioned = 1;
                 }
 
                 /* This is only set once when we enter daylight saving. */
-                data[2] = (int64_t)gmtoff * 10000000L;
-                data[3] = (int64_t)(GMTOffset(&tt, t) - gmtoff) * 10000000L;
+                if (!*daylight_inverted)
+                {
+                    data[2] = (int64_t)gmtoff * 10000000L;
+                    data[3] = (int64_t)(GMTOffset(&tt, t) - gmtoff) * 10000000L;
+                }
+                else
+                {
+                    data[2] = (int64_t)(gmtoff_start + (GMTOffset(&tt, t) - gmtoff)) * 10000000L;
+                    data[3] = (int64_t)(gmtoff - GMTOffset(&tt, t)) * 10000000L;
+                }
 
                 gmtoff = GMTOffset(&tt, t);
             }
         }
 
-        if (!is_daylight)
+        if (!is_transitioned)
         {
             strftime(tzone, sizeof(tzone), "%Z", &tt);
             names[0] = tzone;
@@ -136,6 +156,7 @@ namespace os
             data[1] = 0;
             data[2] = (int64_t)gmtoff * 10000000L;
             data[3] = 0;
+            *daylight_inverted = false;
         }
 
         return true;

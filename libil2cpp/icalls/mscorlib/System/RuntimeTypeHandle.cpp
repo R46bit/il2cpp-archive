@@ -7,11 +7,10 @@
 #include "Type.h"
 
 #include "vm/Class.h"
+#include "vm/GenericContainer.h"
 #include "vm/Image.h"
 #include "vm/Reflection.h"
 #include "vm/MetadataCache.h"
-
-#if NET_4_0
 
 namespace il2cpp
 {
@@ -21,9 +20,21 @@ namespace mscorlib
 {
 namespace System
 {
-    bool RuntimeTypeHandle::HasInstantiation(Il2CppReflectionRuntimeType* type)
+    bool RuntimeTypeHandle::HasInstantiation(Il2CppReflectionRuntimeType* typeObject)
     {
-        return Type::get_IsGenericType(&type->type);
+        const Il2CppType* type = typeObject->type.type;
+
+        if (type->byref)
+            return false;
+
+        Il2CppClass* klass = vm::Class::FromIl2CppType(type);
+
+        return vm::Class::IsGeneric(klass) || vm::Class::IsInflated(klass);
+    }
+
+    bool RuntimeTypeHandle::HasReferences(Il2CppReflectionRuntimeType* type)
+    {
+        return vm::Class::FromIl2CppType(type->type.type)->has_references;
     }
 
     bool RuntimeTypeHandle::IsArray(Il2CppReflectionRuntimeType* type)
@@ -135,7 +146,7 @@ namespace System
                     const Il2CppGenericContainer *container = il2cpp::vm::MetadataCache::GetGenericContainerFromIndex(param->ownerIndex);
                     monoParam->pklass = NULL;
                     if (container)
-                        monoParam->pklass = il2cpp::vm::MetadataCache::GetTypeInfoFromTypeIndex(container->ownerIndex);
+                        monoParam->pklass = il2cpp::vm::GenericContainer::GetDeclaringType(container);
 
                     monoParam->constraints = (Il2CppClass**)IL2CPP_MALLOC(sizeof(Il2CppClass*) * (param->constraintsCount + 1));
                     for (int i = 0; i < param->constraintsCount; ++i)
@@ -158,5 +169,3 @@ namespace System
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-
-#endif

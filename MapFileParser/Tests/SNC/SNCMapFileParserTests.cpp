@@ -1,9 +1,8 @@
-#include "UnityPrefix.h"
-
 #if ENABLE_UNIT_TESTS
 
+#include "../../../external/Catch/catch.hpp"
+
 #include "../../SNC/SNCMapFileParser.h"
-#include "Runtime/Testing/Testing.h"
 #include <sstream>
 
 using namespace mapfileparser;
@@ -30,36 +29,32 @@ __ARM_unwind_cpp_prcommon\n\
 81000545 00000084     0                         Test_Method2_m5\n\
 ";
 
-
-UNIT_TEST_SUITE(SNCMapFileParseTests)
+TEST_CASE("Parsing_SNC_MapFile_ContainsExpectedSectionsAndSymbols")
 {
-    TEST(Parsing_SNC_MapFile_ContainsExpectedSectionsAndSymbols)
-    {
-        std::stringstream ss(mockMapFile);
-        SNCMapFileParser parser;
-        MapFile mapFile = parser.Parse(ss);
-        CHECK_EQUAL(1, mapFile.sections.size());
+    std::stringstream ss(mockMapFile);
+    SNCMapFileParser parser;
+    MapFile mapFile = parser.Parse(ss);
+    REQUIRE(1 == mapFile.sections.size());
 
-        Section section = mapFile.sections[0];
-        CHECK_EQUAL(0x81000000, section.start);
-        CHECK_EQUAL(0x003b220c, section.length);
-        CHECK_EQUAL(".text", section.name);
-        CHECK_EQUAL(".text", section.segmentName);
+    Section section = mapFile.sections[0];
+    REQUIRE(0x81000000 == section.start);
+    REQUIRE(0x003b220c == section.length);
+    REQUIRE(".text" == section.name);
+    REQUIRE(".text" == section.segmentName);
 
-        CHECK_EQUAL(5, mapFile.symbols.size());
+    REQUIRE(5 == mapFile.symbols.size());
 
-        Symbol symbol = mapFile.symbols[0];
-        CHECK_EQUAL(0x00000200, symbol.start);
-        CHECK_EQUAL(0x00000016, symbol.length);
-        CHECK_EQUAL("Test__ctor_m0", symbol.name);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
+    Symbol symbol = mapFile.symbols[0];
+    REQUIRE(0x00000200 == symbol.start);
+    REQUIRE(0x00000016 == symbol.length);
+    REQUIRE("Test__ctor_m0" == symbol.name);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 
-        symbol = mapFile.symbols[2];
-        CHECK_EQUAL(0x0000035c, symbol.start);
-        CHECK_EQUAL(0x0000000a, symbol.length);
-        CHECK_EQUAL("Test_Update_m2", symbol.name);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
-    }
+    symbol = mapFile.symbols[2];
+    REQUIRE(0x0000035c == symbol.start);
+    REQUIRE(0x0000000a == symbol.length);
+    REQUIRE("Test_Update_m2" == symbol.name);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
 }
 
 #endif // ENABLE_UNIT_TESTS

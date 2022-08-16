@@ -1,4 +1,3 @@
-#if NET_4_0
 #include "il2cpp-config.h"
 #include "SymbolType.h"
 
@@ -16,7 +15,7 @@ namespace Emit
 {
     void SymbolType::create_unmanaged_type(Il2CppObject* type)
     {
-        NOT_IMPLEMENTED_ICALL(SymbolType::create_unmanaged_type);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(SymbolType::create_unmanaged_type);
         IL2CPP_UNREACHABLE;
     }
 } // namespace Emit
@@ -25,4 +24,3 @@ namespace Emit
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-#endif

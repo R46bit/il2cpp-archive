@@ -1,10 +1,9 @@
 #pragma once
 
 #include "il2cpp-config.h"
+#include "il2cpp-pinvoke-support.h"
 #include "utils/StringView.h"
 #include <string>
-
-struct PInvokeArguments;
 
 namespace il2cpp
 {
@@ -20,6 +19,8 @@ namespace os
         static Il2CppMethodPointer GetFunctionPointer(void* dynamicLibrary, const char* functionName);
         static void CleanupLoadedLibraries();
         static bool CloseLoadedLibrary(void*& dynamicLibrary);
+    private:
+        static bool EntryNameMatches(const il2cpp::utils::StringView<char>& hardcodedEntryPoint, const il2cpp::utils::StringView<char>& entryPoint);
     };
 } /* namespace os */
 } /* namespace il2cpp*/

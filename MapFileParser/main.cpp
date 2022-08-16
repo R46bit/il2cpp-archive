@@ -2,27 +2,14 @@
 #include "Driver.h"
 
 #if ENABLE_UNIT_TESTS
-#include "Runtime/Testing/Testing.h"
-
-struct AlwaysTrue
-{
-    bool operator()(const UnitTest::Test* const) const
-    {
-        return true;
-    }
-};
+#define CATCH_CONFIG_RUNNER
+#include "../external/Catch/catch.hpp"
 #endif
 
 int tmain(int argc, NativeChar** argv)
 {
 #if ENABLE_UNIT_TESTS
-    for (int i = 1; i < argc; i++)
-    {
-        if (NativeStrCmp(argv[i], NativeText("-runNativeTests")) == 0 || NativeStrCmp(argv[i], NativeText("-runUnitTests")) == 0)
-        {
-            return RunNativeTests();
-        }
-    }
+    return Catch::Session().run(argc, argv);
 #endif
 
     return mapfileparser::Driver::Run(argc, argv, std::cout);
@@ -30,6 +17,7 @@ int tmain(int argc, NativeChar** argv)
 
 #if _WINDOWS
 #include <Windows.h>
+#include <shellapi.h>
 
 int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nShowCmd)
 {

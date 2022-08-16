@@ -25,8 +25,8 @@
 #include <sys/types.h>
 #include <string>
 
-#define INVALID_FILE_HANDLE     (FileHandle*)-1;
-#define INVALID_FILE_ATTRIBUTES (UnityPalFileAttributes)((uint32_t)-1);
+#define INVALID_FILE_HANDLE     (FileHandle*)-1
+#define INVALID_FILE_ATTRIBUTES (UnityPalFileAttributes)((uint32_t)-1)
 #define TIME_ZERO               116444736000000000ULL
 
 namespace il2cpp
@@ -36,11 +36,15 @@ namespace os
 // Head and tail of linked list.
     static FileHandle* s_fileHandleHead = NULL;
     static FileHandle* s_fileHandleTail = NULL;
+#if IL2CPP_SUPPORT_THREADS
     static FastMutex s_fileHandleMutex;
+#endif
 
     static void AddFileHandle(FileHandle *fileHandle)
     {
+#if IL2CPP_SUPPORT_THREADS
         FastAutoLock autoLock(&s_fileHandleMutex);
+#endif
 
         if (s_fileHandleHead == NULL)
         {
@@ -62,7 +66,9 @@ namespace os
 
     static void RemoveFileHandle(il2cpp::os::FileHandle *fileHandle)
     {
+#if IL2CPP_SUPPORT_THREADS
         FastAutoLock autoLock(&s_fileHandleMutex);
+#endif
 
         if (s_fileHandleHead == fileHandle)
             s_fileHandleHead = fileHandle->next;
@@ -79,7 +85,9 @@ namespace os
 
     static const FileHandle* FindFileHandle(const struct stat& statBuf)
     {
+#if IL2CPP_SUPPORT_THREADS
         FastAutoLock autoLock(&s_fileHandleMutex);
+#endif
 
         const dev_t device = statBuf.st_dev;
         const ino_t inode = statBuf.st_ino;
@@ -244,6 +252,7 @@ namespace os
         return isatty(fileHandle->fd) == 1;
     }
 
+#if !IL2CPP_PLATFORM_OVERRIDES_STD_FILE_HANDLES
     FileHandle* File::GetStdError()
     {
         static FileHandle* s_handle = NULL;
@@ -291,6 +300,8 @@ namespace os
 
         return s_handle;
     }
+
+#endif
 
     bool File::CreatePipe(FileHandle** read_handle, FileHandle** write_handle)
     {
@@ -523,7 +534,7 @@ namespace os
 
         if (!ShareAllowOpen(srcStat, kFileShareNone, kFileAccessWrite))
         {
-            *error = kErrorCodeSharingViolation;
+            *error = kErrorCodeSuccess;
             return false;
         }
 
@@ -992,6 +1003,12 @@ namespace os
 
     int File::Read(FileHandle* handle, char *dest, int count, int *error)
     {
+        if (handle == NULL || handle == INVALID_FILE_HANDLE)
+        {
+            *error = kErrorCodeInvalidHandle;
+            return 0;
+        }
+
         if ((handle->accessMode & kFileAccessRead) == 0)
         {
             *error = kErrorCodeAccessDenied;
@@ -1023,7 +1040,7 @@ namespace os
         if ((handle->accessMode & kFileAccessWrite) == 0)
         {
             *error = kErrorCodeAccessDenied;
-            return 0;
+            return -1;
         }
 
         int ret;
@@ -1037,7 +1054,7 @@ namespace os
         if (ret == -1)
         {
             *error = FileErrnoToErrorCode(errno);
-            return 0;
+            return -1;
         }
 
 #if IL2CPP_ENABLE_PROFILER
@@ -1095,7 +1112,7 @@ namespace os
 #ifdef ENOTSUP
                 || errno == ENOTSUP
 #endif
-                )
+            )
             {
                 *error = kErrorCodeSuccess;
                 return;
@@ -1137,7 +1154,7 @@ namespace os
 #ifdef ENOTSUP
                 || errno == ENOTSUP
 #endif
-                )
+            )
             {
                 *error = kErrorCodeSuccess;
                 return;
@@ -1153,7 +1170,7 @@ namespace os
     bool File::DuplicateHandle(FileHandle* source_process_handle, FileHandle* source_handle, FileHandle* target_process_handle,
         FileHandle** target_handle, int access, int inhert, int options, int* error)
     {
-        NOT_IMPLEMENTED_ICALL(File::DuplicateHandle);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(File::DuplicateHandle);
         return false;
     }
 

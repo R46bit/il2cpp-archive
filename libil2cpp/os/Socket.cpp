@@ -1,13 +1,14 @@
 #include "il2cpp-config.h"
 
+#if IL2CPP_SUPPORT_SOCKETS
+
 #include <map>
 
 #include "os/Socket.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
 
-#if IL2CPP_TARGET_POSIX && !IL2CPP_TARGET_JAVASCRIPT
-// Note: sockets are not supported when targetting WebGL, even if it is considered a POSIX platform.
+#if IL2CPP_TARGET_POSIX
 # include "os/Posix/SocketImpl.h"
 #elif IL2CPP_TARGET_WINDOWS
 # include "os/Win32/SocketImpl.h"
@@ -124,9 +125,14 @@ namespace os
         return SocketImpl::GetHostByAddr(address, name, aliases, addr_list);
     }
 
-    WaitStatus Socket::GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addr_list)
+    WaitStatus Socket::GetHostByName(const std::string &host, std::string &name, std::vector<std::string> &aliases, std::vector<std::string> &addresses)
     {
-        return SocketImpl::GetHostByName(host, name, aliases, addr_list);
+        return SocketImpl::GetHostByName(host, name, aliases, addresses);
+    }
+
+    WaitStatus Socket::GetHostByName(const std::string &host, std::string &name, int32_t &family, std::vector<std::string> &aliases, std::vector<void*> &addr_list, int32_t &addr_size)
+    {
+        return SocketImpl::GetHostByName(host, name, family, aliases, addr_list, addr_size);
     }
 
     Socket::Socket(ThreadStatusCallback thread_status_callback)
@@ -359,9 +365,19 @@ namespace os
 
 #endif
 
+#if IL2CPP_SUPPORT_IPV6_SUPPORT_QUERY
+    bool Socket::IsIPv6Supported()
+    {
+        return SocketImpl::IsIPv6Supported();
+    }
+
+#endif
+
     WaitStatus Socket::SendFile(const char *filename, TransmitFileBuffers *buffers, TransmitFileOptions options)
     {
         return m_Socket->SendFile(filename, buffers, options);
     }
 }
 }
+
+#endif

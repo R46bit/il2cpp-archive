@@ -41,8 +41,10 @@ namespace
         if (!dladdr(reinterpret_cast<void*>(addr), &info))
             return false;
 
-        const char* const slash = strrchr(info.dli_fname, '/');
-        return slash && strcmp(slash + 1, "libunity.so") == 0;
+        // dli_name can have different values depending on Android OS:
+        // Google Pixel 2 Android 10, dli_name will be "/data/app/com.unity.stopaskingforpackagename-uRHSDLXYA4cnHxyTNT30-g==/lib/arm/libunity.so"
+        // Samsung GT-I9505 Android 5, dli_name will be "libunity.so"
+        return info.dli_fname != NULL && strstr(info.dli_fname, "libunity.so") != NULL;
     }
 
     struct AndroidStackTrace
@@ -75,7 +77,7 @@ namespace
     };
 }
 
-    void StackTrace::WalkStack(WalkStackCallback callback, void* context, WalkOrder walkOrder)
+    void StackTrace::WalkStackNative(WalkStackCallback callback, void* context, WalkOrder walkOrder)
     {
         AndroidStackTrace callstack = {};
         _Unwind_Backtrace(AndroidStackTrace::Callback, &callstack);
@@ -85,6 +87,16 @@ namespace
             if (!callback(callstack.addrs[index], context))
                 break;
         }
+    }
+
+    std::string StackTrace::NativeStackTrace()
+    {
+        return std::string();
+    }
+
+    const void* StackTrace::GetStackPointer()
+    {
+        return __builtin_frame_address(0);
     }
 }
 }

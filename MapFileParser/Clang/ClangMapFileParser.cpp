@@ -54,7 +54,6 @@ namespace mapfileparser
     static void ReadSymbols(std::istream& is, std::vector<Symbol>& symbols, const std::vector<std::string>& objectFiles)
     {
         std::string line;
-        int32_t previousObjectFileIndex = 0;
         while (!is.eof())
         {
             std::getline(is, line);
@@ -71,8 +70,6 @@ namespace mapfileparser
             ClangSymbol clangSymbol = ClangSymbolParser::Parse(line);
             clangSymbol.symbol.segmentType = kSegmentTypeCode;
             clangSymbol.symbol.objectFile = objectFiles[clangSymbol.objectFileIndex];
-
-            previousObjectFileIndex = clangSymbol.objectFileIndex;
 
             symbols.push_back(clangSymbol.symbol);
         }

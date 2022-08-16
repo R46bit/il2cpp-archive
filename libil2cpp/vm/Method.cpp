@@ -19,12 +19,37 @@ namespace vm
 
     Il2CppClass *Method::GetDeclaringType(const MethodInfo* method)
     {
-        return method->declaring_type;
+        return method->klass;
     }
 
     const char* Method::GetName(const MethodInfo *method)
     {
         return method->name;
+    }
+
+    std::string Method::GetNameWithGenericTypes(const MethodInfo* method)
+    {
+        std::string str;
+
+        str += method->name;
+
+        if (method->is_inflated && method->genericMethod->context.method_inst)
+        {
+            const Il2CppGenericInst *inst = method->genericMethod->context.method_inst;
+
+            str += '<';
+
+            for (unsigned int i = 0; i < inst->type_argc; ++i)
+            {
+                str += Type::GetName(inst->type_argv[i], IL2CPP_TYPE_NAME_FORMAT_FULL_NAME);
+                if (i < inst->type_argc - 1)
+                    str += ",";
+            }
+
+            str += '>';
+        }
+
+        return str;
     }
 
     bool Method::IsGeneric(const MethodInfo *method)
@@ -52,6 +77,13 @@ namespace vm
         return method->parameters_count;
     }
 
+    uint32_t Method::GetGenericParamCount(const MethodInfo *method)
+    {
+        if (IsGeneric(method) && method->genericContainer != NULL)
+            return method->genericContainer->type_argc;
+        return 0;
+    }
+
     const Il2CppType* Method::GetParam(const MethodInfo *method, uint32_t index)
     {
         if (index < method->parameters_count)
@@ -72,7 +104,7 @@ namespace vm
 
     Il2CppClass* Method::GetClass(const MethodInfo *method)
     {
-        return method->declaring_type;
+        return method->klass;
     }
 
     bool Method::HasAttribute(const MethodInfo *method, Il2CppClass *attr_class)
@@ -245,9 +277,9 @@ namespace vm
     std::string Method::GetFullName(const MethodInfo* method)
     {
         std::string str;
-        str += Type::GetName(method->declaring_type->byval_arg, IL2CPP_TYPE_NAME_FORMAT_FULL_NAME);
+        str += Type::GetName(&method->klass->byval_arg, IL2CPP_TYPE_NAME_FORMAT_FULL_NAME);
         str += "::";
-        str += Method::GetName(method);
+        str += Method::GetNameWithGenericTypes(method);
 
         return str;
     }

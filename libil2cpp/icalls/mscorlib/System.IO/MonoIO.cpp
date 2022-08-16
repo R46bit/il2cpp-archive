@@ -1,5 +1,7 @@
 #include "il2cpp-config.h"
 #include "il2cpp-class-internals.h"
+#include "gc/GarbageCollector.h"
+#include "gc/WriteBarrier.h"
 #include "icalls/mscorlib/System.IO/MonoIO.h"
 #include "os/Directory.h"
 #include "os/ErrorCodes.h"
@@ -47,6 +49,14 @@ namespace IO
         return il2cpp::os::File::CopyFile(srcString, destString, overwrite, error);
     }
 
+    bool MonoIO::CopyFile40(Il2CppChar *src, Il2CppChar *dest, bool overwrite, int *error)
+    {
+        const std::string srcString(il2cpp::utils::StringUtils::Utf16ToUtf8(src));
+        const std::string destString(il2cpp::utils::StringUtils::Utf16ToUtf8(dest));
+
+        return il2cpp::os::File::CopyFile(srcString, destString, overwrite, error);
+    }
+
     intptr_t MonoIO::get_ConsoleError(void)
     {
         intptr_t ret;
@@ -73,9 +83,19 @@ namespace IO
         return il2cpp::os::Directory::Create(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), error);
     }
 
+    bool MonoIO::CreateDirectory40(Il2CppChar* path, int32_t* error)
+    {
+        return il2cpp::os::Directory::Create(il2cpp::utils::StringUtils::Utf16ToUtf8(path), error);
+    }
+
     bool MonoIO::DeleteFile(Il2CppString *path, int *error)
     {
         return il2cpp::os::File::DeleteFile(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), error);
+    }
+
+    bool MonoIO::DeleteFile40(Il2CppChar *path, int *error)
+    {
+        return il2cpp::os::File::DeleteFile(il2cpp::utils::StringUtils::Utf16ToUtf8(path), error);
     }
 
     Il2CppChar MonoIO::get_DirectorySeparatorChar(void)
@@ -93,6 +113,11 @@ namespace IO
         return il2cpp::os::File::GetFileAttributes(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), error);
     }
 
+    int MonoIO::GetFileAttributes40(Il2CppChar* path, int* error)
+    {
+        return il2cpp::os::File::GetFileAttributes(il2cpp::utils::StringUtils::Utf16ToUtf8(path), error);
+    }
+
     bool MonoIO::GetFileStat(Il2CppString* path, FileStat * stat, int32_t* error)
     {
         os::FileStat fileStat;
@@ -101,9 +126,24 @@ namespace IO
 
         if (ret)
         {
-#if !NET_4_0
-            stat->name = vm::String::New(fileStat.name.c_str());
-#endif
+            stat->attributes = fileStat.attributes;
+            stat->length = fileStat.length;
+            stat->creation_time = fileStat.creation_time;
+            stat->last_access_time = fileStat.last_access_time;
+            stat->last_write_time = fileStat.last_write_time;
+        }
+
+        return ret;
+    }
+
+    bool MonoIO::GetFileStat40(Il2CppChar* path, FileStat * stat, int32_t* error)
+    {
+        os::FileStat fileStat;
+
+        const bool ret = il2cpp::os::File::GetFileStat(il2cpp::utils::StringUtils::Utf16ToUtf8(path), &fileStat, error);
+
+        if (ret)
+        {
             stat->attributes = fileStat.attributes;
             stat->length = fileStat.length;
             stat->creation_time = fileStat.creation_time;
@@ -133,6 +173,13 @@ namespace IO
         return ret;
     }
 
+    intptr_t MonoIO::Open40(Il2CppChar *filename, int mode, int access_mode, int share, int options, int *error)
+    {
+        intptr_t ret;
+        ret = (intptr_t)il2cpp::os::File::Open(il2cpp::utils::StringUtils::Utf16ToUtf8(filename), mode, access_mode, share, options, error);
+        return ret;
+    }
+
     Il2CppChar MonoIO::get_PathSeparator(void)
     {
 #if IL2CPP_COMPILER_MSVC
@@ -155,12 +202,20 @@ namespace IO
 
         char *buffer = il2cpp_array_addr(dest, char, dest_offset);
 
-        return il2cpp::os::File::Read(h, buffer, count, error);
+        int bytesRead = il2cpp::os::File::Read(h, buffer, count, error);
+        if (*error != 0)
+            return -1;
+        return bytesRead;
     }
 
     bool MonoIO::SetCurrentDirectory(Il2CppString* path, int* error)
     {
         return il2cpp::os::Directory::SetCurrent(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), error);
+    }
+
+    bool MonoIO::SetCurrentDirectory40(Il2CppChar* path, int* error)
+    {
+        return il2cpp::os::Directory::SetCurrent(il2cpp::utils::StringUtils::Utf16ToUtf8(path), error);
     }
 
     bool MonoIO::SetLength(intptr_t handle, int64_t length, int *error)
@@ -204,6 +259,11 @@ namespace IO
         return il2cpp::os::Directory::Remove(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), error);
     }
 
+    bool MonoIO::RemoveDirectory40(Il2CppChar* path, MonoIOError* error)
+    {
+        return il2cpp::os::Directory::Remove(il2cpp::utils::StringUtils::Utf16ToUtf8(path), error);
+    }
+
     Il2CppArray* MonoIO::GetFileSystemEntries(Il2CppString* path, Il2CppString* path_with_pattern, int32_t attrs, int32_t mask, MonoIOError* error)
     {
         const std::string pathString(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars));
@@ -230,6 +290,14 @@ namespace IO
         return il2cpp::os::File::MoveFile(srcString, destString, error);
     }
 
+    bool MonoIO::MoveFile40(Il2CppChar* src, Il2CppChar* dest, MonoIOError* error)
+    {
+        const std::string srcString(il2cpp::utils::StringUtils::Utf16ToUtf8(src));
+        const std::string destString(il2cpp::utils::StringUtils::Utf16ToUtf8(dest));
+
+        return il2cpp::os::File::MoveFile(srcString, destString, error);
+    }
+
     bool MonoIO::ReplaceFile(Il2CppString* sourceFileName, Il2CppString* destinationFileName, Il2CppString* destinationBackupFileName, bool ignoreMetadataErrors, MonoIOError* error)
     {
         const std::string srcString(il2cpp::utils::StringUtils::Utf16ToUtf8(sourceFileName->chars));
@@ -239,9 +307,23 @@ namespace IO
         return il2cpp::os::File::ReplaceFile(srcString, destString, destBackupString, ignoreMetadataErrors, error);
     }
 
+    bool MonoIO::ReplaceFile40(Il2CppChar* sourceFileName, Il2CppChar* destinationFileName, Il2CppChar* destinationBackupFileName, bool ignoreMetadataErrors, MonoIOError* error)
+    {
+        const std::string srcString(il2cpp::utils::StringUtils::Utf16ToUtf8(sourceFileName));
+        const std::string destString(il2cpp::utils::StringUtils::Utf16ToUtf8(destinationFileName));
+        const std::string destBackupString(destinationBackupFileName ? il2cpp::utils::StringUtils::Utf16ToUtf8(destinationBackupFileName) : "");
+
+        return il2cpp::os::File::ReplaceFile(srcString, destString, destBackupString, ignoreMetadataErrors, error);
+    }
+
     bool MonoIO::SetFileAttributes(Il2CppString* path, FileAttributes attrs, MonoIOError* error)
     {
         return il2cpp::os::File::SetFileAttributes(il2cpp::utils::StringUtils::Utf16ToUtf8(path->chars), (UnityPalFileAttributes)attrs, error);
+    }
+
+    bool MonoIO::SetFileAttributes40(Il2CppChar* path, FileAttributes attrs, MonoIOError* error)
+    {
+        return il2cpp::os::File::SetFileAttributes(il2cpp::utils::StringUtils::Utf16ToUtf8(path), (UnityPalFileAttributes)attrs, error);
     }
 
     bool MonoIO::Flush(intptr_t handle, MonoIOError* error)
@@ -314,8 +396,6 @@ namespace IO
         *newPath = NULL;
         return false;
     }
-
-#if NET_4_0
 
     static int32_t CloseFindHandle(os::Directory::FindHandle* findHandle)
     {
@@ -404,13 +484,10 @@ namespace IO
 
     void MonoIO::DumpHandles()
     {
-        NOT_IMPLEMENTED_ICALL(MonoIO::DumpHandles);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(MonoIO::DumpHandles);
         IL2CPP_UNREACHABLE;
     }
 
-#endif
-
-#if NET_4_0
     bool MonoIO::FindCloseFile(intptr_t hnd)
     {
         return CloseFindHandle(reinterpret_cast<os::Directory::FindHandle*>(hnd));
@@ -433,12 +510,13 @@ namespace IO
 
         DECLARE_NATIVE_STRING_AS_STRING_VIEW_OF_IL2CPP_CHARS(fileNameNativeUtf16, fileNameNative);
         *fileName = vm::String::NewUtf16(fileNameNativeUtf16);
+        gc::GarbageCollector::SetWriteBarrier((void**)fileName);
         return true;
     }
 
-    intptr_t MonoIO::FindFirstFile(Il2CppString* path_with_pattern, Il2CppString** fileName, int32_t* fileAttr, int32_t* error)
+    intptr_t MonoIO::FindFirstFile(Il2CppChar* path_with_pattern, Il2CppString** fileName, int32_t* fileAttr, int32_t* error)
     {
-        DECLARE_IL2CPP_STRING_AS_STRING_VIEW_OF_NATIVE_CHARS(pathWithPatternNative, path_with_pattern);
+        DECLARE_IL2CPP_CHAR_PTR_AS_STRING_VIEW_OF_NATIVE_CHARS(pathWithPatternNative, path_with_pattern);
         os::Directory::FindHandle* findHandle = new(utils::Memory::Malloc(sizeof(os::Directory::FindHandle))) os::Directory::FindHandle(pathWithPatternNative);
 
         Il2CppNativeString fileNameNative;
@@ -465,11 +543,10 @@ namespace IO
 
         DECLARE_NATIVE_STRING_AS_STRING_VIEW_OF_IL2CPP_CHARS(fileNameNativeUtf16, fileNameNative);
         *fileName = vm::String::NewUtf16(fileNameNativeUtf16);
+        gc::GarbageCollector::SetWriteBarrier((void**)fileName);
 
         return reinterpret_cast<intptr_t>(findHandle);
     }
-
-#endif
 } /* namespace IO */
 } /* namespace System */
 } /* namespace mscorlib */

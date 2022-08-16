@@ -56,6 +56,7 @@ SUITE(File)
         il2cpp::os::FileHandle* handle;
     };
 
+#if !IL2CPP_TARGET_WINRT && !IL2CPP_TARGET_XBOXONE
     TEST_FIXTURE(FileFixture, FileIsAttyWithValidButNoTTY_ReturnsFalse)
     {
         CHECK_MSG(!UnityPalIsatty(handle), "A normal is a TTY, which is not expected.");
@@ -72,6 +73,8 @@ SUITE(File)
     {
         CHECK_EQUAL((int32_t)il2cpp::os::File::Isatty(handle), UnityPalIsatty(handle));
     }
+
+#endif
 
     TEST(FileOpenNoError_ReturnsNonNullHandle)
     {
@@ -93,7 +96,7 @@ SUITE(File)
         UnityPalFileHandle* handle = NULL;
         handle = UnityPalOpen(CURRENT_DIRECTORY("file_does_not_exist"), kFileModeOpen, 0, 0, 0, &error);
 
-#if IL2CPP_TARGET_PS4
+#if IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
         CHECK_EQUAL(il2cpp::os::kErrorCodePathNotFound, error);
 #else
         CHECK_EQUAL(il2cpp::os::kErrorCodeFileNotFound, error);
@@ -314,7 +317,6 @@ SUITE(File)
         CHECK_NOT_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
 
-
     TEST_FIXTURE(FileFixture, GetFileStatNormalName)
     {
         int error;
@@ -501,7 +503,6 @@ SUITE(File)
         CHECK_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
 
-
     TEST(CopyFileBadResult_ReturnsFalse)
     {
         int error;
@@ -648,7 +649,6 @@ SUITE(File)
 
         CHECK_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
-
 
     TEST(DeleteFileBadResult_ReturnsFalse)
     {
@@ -797,9 +797,7 @@ SUITE(File)
         il2cpp::os::File::GetFileStat(TEST_FILE_NAME, &class_fileStat, &error);
         il2cpp::os::File::Close(handle, &error);
 
-
-        // They dont have to be exact, just in the ballpark
-        CHECK_EQUAL(class_fileStat.last_write_time / 1000000L, api_fileStat.last_write_time / 1000000L);
+        CHECK_EQUAL(class_fileStat.attributes, api_fileStat.attributes);
     }
 
 #if !IL2CPP_USE_GENERIC_FILE
@@ -870,7 +868,7 @@ SUITE(File)
 #endif // IL2CPP_USE_GENERIC_FILE
 
 // The utime function returns -1 on PS4. I'm not sure why.
-#if !IL2CPP_TARGET_PS4
+#if !IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
     TEST(SetFileTimeNormal)
     {
         int error;
@@ -1239,11 +1237,9 @@ SUITE(File)
 
     TEST(ReadBadResult)
     {
-        int error;
-        il2cpp::os::FileHandle* handle = il2cpp::os::File::Open(TEST_FILE_NAME, kFileModeOpenOrCreate, kFileAccessReadWrite, 0, 0, &error);
-        CleanupTestFile(handle);
+        int usused;
         char buffer[16];
-        int64_t result = UnityPalRead(handle, buffer, 16, &error);
+        int64_t result = UnityPalRead(NULL, buffer, 16, &usused);
 
         CHECK(!result);
     }
@@ -1251,10 +1247,8 @@ SUITE(File)
     TEST(ReadBadError)
     {
         int error;
-        il2cpp::os::FileHandle* handle = il2cpp::os::File::Open(TEST_FILE_NAME, kFileModeOpenOrCreate, kFileAccessReadWrite, 0, 0, &error);
-        CleanupTestFile(handle);
         char buffer[16];
-        UnityPalRead(handle, buffer, 16, &error);
+        UnityPalRead(NULL, buffer, 16, &error);
 
         CHECK_NOT_EQUAL(il2cpp::os::kErrorCodeSuccess, error);
     }
@@ -1305,31 +1299,24 @@ SUITE(File)
 
     TEST(ReadBadResultMatchesClass)
     {
-        int error;
-        il2cpp::os::FileHandle* handle = il2cpp::os::File::Open(TEST_FILE_NAME, kFileModeOpenOrCreate, kFileAccessReadWrite, 0, 0, &error);
-        CleanupTestFile(handle);
-
+        int unused;
         char buffer[16];
 
-        int64_t api_result = UnityPalRead(handle, buffer, 14, &error);
-        int64_t class_result = il2cpp::os::File::Read(handle, buffer, 14, &error);
+        int64_t api_result = UnityPalRead(NULL, buffer, 14, &unused);
+        int64_t class_result = il2cpp::os::File::Read(NULL, buffer, 14, &unused);
 
         CHECK_EQUAL(class_result, api_result);
     }
 
     TEST(ReadBadErrorMatchesClass)
     {
-        int error;
         int api_error;
         int class_error;
 
-        il2cpp::os::FileHandle* handle = il2cpp::os::File::Open(TEST_FILE_NAME, kFileModeOpenOrCreate, kFileAccessReadWrite, 0, 0, &error);
-        CleanupTestFile(handle);
-
         char buffer[16];
 
-        UnityPalRead(handle, buffer, 14, &api_error);
-        il2cpp::os::File::Read(handle, buffer, 14, &class_error);
+        UnityPalRead(NULL, buffer, 14, &api_error);
+        il2cpp::os::File::Read(NULL, buffer, 14, &class_error);
 
         CHECK_EQUAL(class_error, api_error);
     }
@@ -1386,7 +1373,7 @@ SUITE(File)
         int32_t result = UnityPalWrite(handle, buffer, 14, &error);
 
 
-        CHECK_EQUAL(0, result);
+        CHECK_EQUAL(-1, result);
     }
 
     TEST(WriteNormalResultMatchesClass)
@@ -1563,7 +1550,7 @@ SUITE(File)
         CHECK_EQUAL(class_error, api_error);
     }
 
-#if !IL2CPP_TARGET_PS4
+#if !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5 && !IL2CPP_TARGET_WINRT && !IL2CPP_TARGET_XBOXONE
     TEST(CreatePipeNormalResult_ReturnsTrue)
     {
         int error;
@@ -1683,6 +1670,7 @@ SUITE(File)
     {
         CHECK_MSG(!UnityPalIsExecutable(nonexecutableFilename), "A file not ending in the .exe extension is reported as executable, which is not expected.");
     }
+
 #else
     TEST_FIXTURE(ExecutableFileFixture, IsExecutable_ReturnsTrueForFileWithExecutablePermissions)
     {
@@ -1693,6 +1681,7 @@ SUITE(File)
     {
         CHECK_MSG(!UnityPalIsExecutable(nonexecutableFilename), "A file without executable permissions is reported as executable, which is not expected.");
     }
+
 #endif
 
 #endif // IL2CPP_CAN_CHECK_EXECUTABLE

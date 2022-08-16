@@ -12,61 +12,37 @@ typedef Il2CppHashMap<uint64_t, const MonoMethodInfoMetadata*, il2cpp::utils::Pa
 typedef Il2CppHashMap<uint64_t, const RuntimeGenericContextInfo*, il2cpp::utils::PassThroughHash<uint64_t> > MonoRgctxInfoMap;
 typedef Il2CppHashMap<uint64_t, const MonoMethodMetadata*, il2cpp::utils::PassThroughHash<uint64_t> > MonoMethodMetadataMap;
 
-static MonoMethodInfoMap s_MonoMethodInfoMap;
 static MonoMethodInfoMap s_GenericMonoMethodInfoMap;
-static MonoRgctxInfoMap s_MonoRgctxInfoMap;
 static MonoMethodMetadataMap s_MonoMethodMetadataMap;
 
 static void* s_GlobalMonoMetadata;
 static const Il2CppGlobalMonoMetadataHeader* s_GlobalMonoMetadataHeader;
 
-void MetadataCache::Initialize()
+bool MetadataCache::Initialize()
 {
     s_GlobalMonoMetadata = MetadataLoader::LoadMetadataFile("global-metadata.dat");
+    if (!s_GlobalMonoMetadata)
+        return false;
     s_GlobalMonoMetadataHeader = (const Il2CppGlobalMonoMetadataHeader*)s_GlobalMonoMetadata;
     IL2CPP_ASSERT(s_GlobalMonoMetadataHeader->sanity == 0xFAB11BAF);
     IL2CPP_ASSERT(s_GlobalMonoMetadataHeader->version == 1);
 
-    const MonoMethodInfoMetadata* methodInfo = (const MonoMethodInfoMetadata*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->methodInfoMappingOffset);
-    int numMethods = s_GlobalMonoMetadataHeader->methodInfoMappingCount / sizeof(MonoMethodInfoMetadata);
-    for (int i = 0; i < numMethods; ++i)
-    {
-        s_MonoMethodInfoMap.add(methodInfo->hash, methodInfo);
-        ++methodInfo;
-    }
-
-    methodInfo = (const MonoMethodInfoMetadata*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->genericMethodInfoMappingOffset);
-    numMethods = s_GlobalMonoMetadataHeader->genericMethodInfoMappingCount / sizeof(MonoMethodInfoMetadata);
+    const MonoMethodInfoMetadata* methodInfo = (const MonoMethodInfoMetadata*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->genericMethodInfoMappingOffset);
+    int numMethods = s_GlobalMonoMetadataHeader->genericMethodInfoMappingCount / sizeof(MonoMethodInfoMetadata);
     for (int i = 0; i < numMethods; ++i)
     {
         s_GenericMonoMethodInfoMap.add(methodInfo->hash, methodInfo);
         ++methodInfo;
     }
 
-    const RuntimeGenericContextInfo* rgctxInfo = (const RuntimeGenericContextInfo*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->rgctxInfoOffset);
-    int numElements = s_GlobalMonoMetadataHeader->rgctxInfoCount / sizeof(RuntimeGenericContextInfo);
-    for (int i = 0; i < numElements; ++i)
-    {
-        s_MonoRgctxInfoMap.add(rgctxInfo->hash, rgctxInfo);
-        ++rgctxInfo;
-    }
-
     const MonoMethodMetadata* monoMethodMetadata = (const MonoMethodMetadata*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->methodMetadataOffset);
-    numElements = s_GlobalMonoMetadataHeader->methodMetadataCount / sizeof(MonoMethodMetadata);
+    int numElements = s_GlobalMonoMetadataHeader->methodMetadataCount / sizeof(MonoMethodMetadata);
     for (int i = 0; i < numElements; ++i)
     {
         s_MonoMethodMetadataMap.add(monoMethodMetadata->hash, monoMethodMetadata);
         ++monoMethodMetadata;
     }
-}
-
-const MonoMethodInfoMetadata* MetadataCache::GetMonoMethodInfoFromMethodHash(uint64_t hash)
-{
-    MonoMethodInfoMap::const_iterator it = s_MonoMethodInfoMap.find(hash);
-    if (it != s_MonoMethodInfoMap.end())
-        return it->second;
-    else
-        return NULL;
+    return true;
 }
 
 const MonoMethodInfoMetadata* MetadataCache::GetMonoGenericMethodInfoFromMethodHash(uint64_t hash)
@@ -83,21 +59,6 @@ const char* MetadataCache::GetStringFromIndex(StringIndex index)
     IL2CPP_ASSERT(index <= s_GlobalMonoMetadataHeader->stringCount);
     const char* strings = ((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->stringOffset) + index;
     return strings;
-}
-
-MonoRGCTXDefinition* MetadataCache::GetMonoRGCTXDefinition(int32_t index)
-{
-    IL2CPP_ASSERT((index * sizeof(MonoRGCTXDefinition)) <= (uint32_t)s_GlobalMonoMetadataHeader->rgctxIndicesCount);
-    return (MonoRGCTXDefinition*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->rgctxIndicesOffset + (index * sizeof(MonoRGCTXDefinition)));
-}
-
-const RuntimeGenericContextInfo* MetadataCache::GetRGCTXInfoFromHash(uint64_t hash)
-{
-    MonoRgctxInfoMap::const_iterator it = s_MonoRgctxInfoMap.find(hash);
-    if (it != s_MonoRgctxInfoMap.end())
-        return it->second;
-    else
-        return NULL;
 }
 
 const MonoMetadataToken* MetadataCache::GetMonoStringTokenFromIndex(StringIndex index)
@@ -137,12 +98,6 @@ const MonoFieldMetadata* MetadataCache::GetFieldMetadataFromIndex(EncodedMethodI
 {
     IL2CPP_ASSERT((index * sizeof(MonoFieldMetadata)) <= (uint32_t)s_GlobalMonoMetadataHeader->fieldTableCount);
     return (MonoFieldMetadata*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->fieldTableOffset + (index * sizeof(MonoFieldMetadata)));
-}
-
-MethodIndex MetadataCache::GetMethodIndex(uint32_t index)
-{
-    IL2CPP_ASSERT((index * sizeof(MethodIndex)) <= (uint32_t)s_GlobalMonoMetadataHeader->methodIndexTableCount);
-    return *(MethodIndex*)((const char*)s_GlobalMonoMetadata + s_GlobalMonoMetadataHeader->methodIndexTableOffset + (index * sizeof(MethodIndex)));
 }
 
 MethodIndex  MetadataCache::GetGenericMethodIndex(uint32_t index)

@@ -1,4 +1,3 @@
-#if NET_4_0
 #include "il2cpp-config.h"
 #include "Context.h"
 
@@ -18,13 +17,13 @@ namespace Contexts
 {
     void Context::RegisterContext(Il2CppObject* ctx)
     {
-        NOT_IMPLEMENTED_ICALL(Context::RegisterContext);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(Context::RegisterContext);
         IL2CPP_UNREACHABLE;
     }
 
     void Context::ReleaseContext(Il2CppObject* ctx)
     {
-        NOT_IMPLEMENTED_ICALL(Context::ReleaseContext);
+        IL2CPP_NOT_IMPLEMENTED_ICALL(Context::ReleaseContext);
         IL2CPP_UNREACHABLE;
     }
 } // namespace Contexts
@@ -34,4 +33,3 @@ namespace Contexts
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-#endif

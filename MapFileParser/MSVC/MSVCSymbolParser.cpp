@@ -30,7 +30,7 @@ namespace mapfileparser
         int64_t absoluteAddress = rva - imageBase;
         assert(absoluteAddress < std::numeric_limits<int32_t>::max());
 
-        Symbol symbol = { static_cast<int32_t>(absoluteAddress), 0, name.buffer, objectFile.buffer };
+        Symbol symbol = { static_cast<int32_t>(absoluteAddress), 0, name.buffer, objectFile.buffer, kSegmentTypeCode };
         return symbol;
     }
 }

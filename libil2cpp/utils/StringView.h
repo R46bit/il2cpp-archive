@@ -1,5 +1,11 @@
 #pragma once
-#include <string>
+#include <limits.h>
+
+#if IL2CPP_TARGET_LINUX
+#define GCC_VERSION (__GNUC__ * 10000 \
+                   + __GNUC_MINOR__ * 100 \
+                   + __GNU_PATCHLEVEL__)
+#endif
 
 namespace il2cpp
 {
@@ -32,6 +38,12 @@ namespace utils
             IL2CPP_ASSERT(str != NULL);
         }
 
+        inline StringView(const CharType* str, size_t startIndex, size_t length) :
+            m_String(str + startIndex), m_Length(length)
+        {
+            IL2CPP_ASSERT(str != NULL);
+        }
+
         inline StringView(const StringView<CharType>& str, size_t startIndex, size_t length) :
             m_String(str.Str() + startIndex),
             m_Length(length)
@@ -39,18 +51,14 @@ namespace utils
             IL2CPP_ASSERT(startIndex + length <= str.Length());
         }
 
-        template<typename CharTraits, typename StringAlloc>
-        inline StringView(const std::basic_string<CharType, CharTraits, StringAlloc>& str) :
-            m_String(str.c_str()), m_Length(str.length())
+// This is to work around a bug in gcc (24666) where arrays decay to pointers too fast
+// This is known to be fixed by at least 7.3.0
+#if IL2CPP_TARGET_LINUX && GCC_VERSION < 70300
+        inline StringView(const char* str) :
+            m_String(str), m_Length(strlen(str))
         {
         }
 
-        // This will prevent accidentally assigning temporary values (like function return values)
-        // to a string view. While this protection will only be enabled on C++11 compiles, even those
-        // are enough to catch the bug in our runtime
-#if IL2CPP_HAS_DELETED_FUNCTIONS
-        template<typename CharTraits, typename StringAlloc>
-        StringView(std::basic_string<CharType, CharTraits, StringAlloc>&&) = delete;
 #endif
 
         inline const CharType* Str() const
@@ -83,9 +91,10 @@ namespace utils
             return StringView<CharType>();
         }
 
-        inline size_t RFind(CharType c) const
+        inline size_t Find(CharType c, size_t startIndex = 0) const
         {
-            for (const CharType* ptr = m_String + m_Length - 1; ptr >= m_String; ptr--)
+            const CharType* end = m_String + m_Length;
+            for (const CharType* ptr = m_String + startIndex; ptr < end; ptr++)
             {
                 if (*ptr == c)
                     return ptr - m_String;
@@ -94,9 +103,75 @@ namespace utils
             return NPos();
         }
 
+        inline size_t RFind(CharType c) const
+        {
+            for (const CharType* ptr = m_String + m_Length; ptr-- > m_String;)
+            {
+                if (*ptr == c)
+                    return ptr - m_String;
+            }
+
+            return NPos();
+        }
+
+        inline StringView<CharType> SubStr(size_t startIndex, size_t length)
+        {
+            return StringView<CharType>(*this, startIndex, length);
+        }
+
+        inline StringView<CharType> SubStr(size_t startIndex)
+        {
+            return StringView<CharType>(*this, startIndex, Length() - startIndex);
+        }
+
         inline static size_t NPos()
         {
             return static_cast<size_t>(-1);
+        }
+
+        inline bool TryParseAsInt(int& outResult)
+        {
+            if (Length() == 0)
+                return false;
+
+            int result = 0;
+            bool isNegative = false;
+            const CharType* ptr = m_String;
+            const CharType* end = m_String + m_Length;
+
+            if (ptr[0] == '-')
+            {
+                isNegative = true;
+                ptr++;
+            }
+
+            for (; ptr < end; ptr++)
+            {
+                CharType digit = *ptr;
+                if (digit < '0' || digit > '9')
+                    return false;
+
+                int digitNumeric = digit - '0';
+                if (result > INT_MAX / 10)
+                    return false;
+
+                result = result * 10;
+                if (result > INT_MAX - digitNumeric)
+                    return false;
+
+                result += digitNumeric;
+            }
+
+            if (isNegative)
+            {
+                outResult = -result;
+            }
+            else
+            {
+                outResult = result;
+            }
+
+            return true;
         }
     };
 

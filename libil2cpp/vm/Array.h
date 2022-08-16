@@ -15,6 +15,7 @@ namespace vm
     class LIBIL2CPP_CODEGEN_API Array
     {
     public:
+        static Il2CppArray* Clone(Il2CppArray* arr);
         static int32_t GetElementSize(const Il2CppClass *klass);
         static uint32_t GetLength(Il2CppArray* array);
         static uint32_t GetByteLength(Il2CppArray* array);
@@ -37,7 +38,7 @@ LIBIL2CPP_CODEGEN_API char* il2cpp_array_addr_with_size(Il2CppArray *array, int3
 
 extern "C"
 {
-IL2CPP_EXPORT int il2cpp_array_element_size(const Il2CppClass *ac);
+    IL2CPP_EXPORT int il2cpp_array_element_size(const Il2CppClass *ac);
 }
 
 #define load_array_elema(arr, idx, size) ((((uint8_t*)(arr)) + kIl2CppSizeOfArray) + ((size) * (idx)))
@@ -62,6 +63,6 @@ IL2CPP_EXPORT int il2cpp_array_element_size(const Il2CppClass *ac);
 #define il2cpp_array_setref(array, index, value)  \
     do {    \
         void* *__p = (void* *) il2cpp_array_addr ((array), void*, (index)); \
-        /* il2cpp_gc_wbarrier_set_arrayref ((array), __p, (MonoObject*)(value));    */\
          *__p = (value);    \
+        il2cpp_gc_wbarrier_set_field((Il2CppObject *)(array), __p, (value));\
     } while (0)

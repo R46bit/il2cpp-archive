@@ -1,7 +1,5 @@
 #pragma once
 
-#if NET_4_0
-
 namespace il2cpp
 {
 namespace icalls
@@ -14,6 +12,7 @@ namespace System
     {
     public:
         static bool HasInstantiation(Il2CppReflectionRuntimeType* type);
+        static bool HasReferences(Il2CppReflectionRuntimeType* type);
         static bool IsArray(Il2CppReflectionRuntimeType* type);
         static bool IsByRef(Il2CppReflectionRuntimeType* type);
         static bool IsComObject(Il2CppReflectionRuntimeType* type);
@@ -37,5 +36,3 @@ namespace System
 } // namespace mscorlib
 } // namespace icalls
 } // namespace il2cpp
-
-#endif

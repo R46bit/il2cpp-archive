@@ -26,9 +26,6 @@ namespace Messaging
 {
     void MonoMethodMessage::InitMessage(Il2CppMethodMessage *this_obj, Il2CppReflectionMethod *method, Il2CppArray *out_args)
     {
-#if !NET_4_0
-        NOT_SUPPORTED_REMOTING(MonoMethodMessage::InitMessage);
-#else
         static Il2CppClass *object_array_klass;
         static Il2CppClass *byte_array_klass;
         static Il2CppClass *string_array_klass;
@@ -57,11 +54,11 @@ namespace Messaging
 
         IL2CPP_OBJECT_SETREF(this_obj, method, method);
 
-        arr = il2cpp_array_new(object_array_klass, method->method->parameters_count);
+        arr = il2cpp_array_new_specific(object_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, args, arr);
 
-        arr = il2cpp_array_new(byte_array_klass, method->method->parameters_count);
+        arr = il2cpp_array_new_specific(byte_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, arg_types, arr);
 
@@ -73,7 +70,7 @@ namespace Messaging
         for (int i = 0; i < method->method->parameters_count; ++i)
             names[i] = method->method->parameters[i].name;
 
-        arr = il2cpp_array_new(string_array_klass, method->method->parameters_count);
+        arr = il2cpp_array_new_specific(string_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, names, arr);
 
@@ -107,7 +104,6 @@ namespace Messaging
 
             il2cpp_array_set(this_obj->arg_types, unsigned char, i, arg_type);
         }
-#endif
     }
 } /* namespace Messaging */
 } /* namespace Remoting */

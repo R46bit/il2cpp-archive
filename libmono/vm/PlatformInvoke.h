@@ -5,15 +5,8 @@
 #include "mono-api.h"
 #include "utils/StringView.h"
 
-struct PInvokeArguments
-{
-    const il2cpp::utils::StringView<Il2CppNativeChar> moduleName;
-    const il2cpp::utils::StringView<char> entryPoint;
-    Il2CppCallConvention callingConvention;
-    Il2CppCharSet charSet;
-    int parameterSize;
-    bool isNoMangle;    // Says whether P/Invoke should append to function name 'A'/'W' according to charSet.
-};
+#include <vector>
+#include <string>
 
 namespace mono
 {
@@ -30,6 +23,9 @@ namespace vm
         static MonoString* MarshalCppStringToCSharpStringResult(const char* value);
         static MonoString* MarshalCppWStringToCSharpStringResult(const mono_unichar2* value);
 
+        static char* MarshalEmptyStringBuilder(MonoStringBuilder* stringBuilder);
+        static mono_unichar2* MarshalEmptyWStringBuilder(MonoStringBuilder* stringBuilder);
+
         static char* MarshalStringBuilder(MonoStringBuilder* stringBuilder);
         static mono_unichar2* MarshalWStringBuilder(MonoStringBuilder* stringBuilder);
 
@@ -45,6 +41,10 @@ namespace vm
             MonoError unused;
             return (T*)mono_marshal_alloc((unsigned long)numberOfCharacters * sizeof(T), &unused);
         }
+
+    private:
+        static char* MarshalEmptyStringBuilder(MonoStringBuilder* stringBuilder, size_t& stringLength, std::vector<std::string>& utf8Chunks, std::vector<MonoStringBuilder*>& builders);
+        static mono_unichar2* MarshalEmptyWStringBuilder(MonoStringBuilder* stringBuilder, size_t& stringLength);
     };
 } // namespace vm
 } // namespace mono

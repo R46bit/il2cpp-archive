@@ -1,7 +1,7 @@
 #include "il2cpp-config.h"
 #include "il2cpp-vm-support.h"
 
-#if !IL2CPP_USE_GENERIC_ENVIRONMENT && IL2CPP_TARGET_POSIX && !IL2CPP_TARGET_PS4
+#if !IL2CPP_USE_GENERIC_ENVIRONMENT && IL2CPP_TARGET_POSIX && !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5
 #include "il2cpp-class-internals.h"
 #include "os/Environment.h"
 #include "il2cpp-api.h"
@@ -24,16 +24,6 @@ namespace il2cpp
 {
 namespace os
 {
-    std::string Environment::GetMachineName()
-    {
-        char buf[256];
-
-        if (gethostname(buf, sizeof(buf)) != 0)
-            return NULL;
-
-        return buf;
-    }
-
     int32_t Environment::GetProcessorCount()
     {
         int count = 1;
@@ -54,6 +44,20 @@ namespace os
 #endif
         return count;
     }
+
+#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !IL2CPP_TARGET_LUMIN
+    std::string Environment::GetMachineName()
+    {
+        char buf[256];
+
+        if (gethostname(buf, sizeof(buf)) != 0)
+            return NULL;
+
+        return buf;
+    }
+
+#endif //!IL2CPP_TARGET_LUMIN
 
     std::string Environment::GetOsVersionString()
     {
@@ -135,18 +139,19 @@ namespace os
         exit(result);
     }
 
+#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
+
     NORETURN void Environment::Abort()
     {
         abort();
     }
 
+#if !IL2CPP_TINY_WITHOUT_DEBUGGER
     std::string Environment::GetWindowsFolderPath(int folder)
     {
         // This should only be called on Windows.
         return std::string();
     }
-
-#if NET_4_0
 
     bool Environment::Is64BitOs()
     {
@@ -160,7 +165,7 @@ namespace os
         return false;
     }
 
-#endif
+#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
 }
 }
 #endif

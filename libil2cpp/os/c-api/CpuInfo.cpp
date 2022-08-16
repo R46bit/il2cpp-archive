@@ -1,19 +1,21 @@
-#include "il2cpp-config.h"
+#include "os/c-api/il2cpp-config-platforms.h"
 
-#if NET_4_0
+#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+
 #include "os/CpuInfo.h"
 #include "os/c-api/CpuInfo-c-api.h"
 
 extern "C"
 {
-void* UnityPalCpuInfoCreate()
-{
-    return il2cpp::os::CpuInfo::Create();
+    void* UnityPalCpuInfoCreate()
+    {
+        return il2cpp::os::CpuInfo::Create();
+    }
+
+    int32_t UnityPalCpuInfoUsage(void* previous)
+    {
+        return il2cpp::os::CpuInfo::Usage(previous);
+    }
 }
 
-int32_t UnityPalCpuInfoUsage(void* previous)
-{
-    return il2cpp::os::CpuInfo::Usage(previous);
-}
-}
-#endif // NET_4_0
+#endif

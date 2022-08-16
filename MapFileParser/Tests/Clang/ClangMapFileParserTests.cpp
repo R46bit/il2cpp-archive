@@ -1,10 +1,9 @@
-#include "UnityPrefix.h"
-#include "../../Clang/ClangMapFileParser.h"
-#include <sstream>
-
 #if ENABLE_UNIT_TESTS
 
-#include "Runtime/Testing/Testing.h"
+#include "../../../external/Catch/catch.hpp"
+
+#include "../../Clang/ClangMapFileParser.h"
+#include <sstream>
 
 using namespace mapfileparser;
 
@@ -46,44 +45,40 @@ static const char* mockMapFile = "# Path: /var/folders/8v/wyyvr8zd5rn3l9nfxz1dv4
 <<dead>> \t0x00000008\t[  2] l_OBJC_LABEL_PROTOCOL_$_NSObject\n\
 ";
 
-
-UNIT_TEST_SUITE(ClangMapFileParserTests)
+TEST_CASE("Parsing_Clang_MapFile_ContainsExpectedSectionsAndSymbols")
 {
-    TEST(Parsing_Clang_MapFile_ContainsExpectedSectionsAndSymbols)
-    {
-        std::stringstream ss(mockMapFile);
-        ClangMapFileParser parser;
-        MapFile mapFile = parser.Parse(ss);
-        CHECK_EQUAL(15, mapFile.sections.size());
+    std::stringstream ss(mockMapFile);
+    ClangMapFileParser parser;
+    MapFile mapFile = parser.Parse(ss);
+    REQUIRE(15 == mapFile.sections.size());
 
-        Section section = mapFile.sections[0];
-        CHECK_EQUAL(0x00001F40, section.start);
-        CHECK_EQUAL(0x00DDC22F, section.length);
-        CHECK_EQUAL("__text", section.name);
-        CHECK_EQUAL("__TEXT", section.segmentName);
+    Section section = mapFile.sections[0];
+    REQUIRE(0x00001F40 == section.start);
+    REQUIRE(0x00DDC22F == section.length);
+    REQUIRE("__text" == section.name);
+    REQUIRE("__TEXT" == section.segmentName);
 
-        section = mapFile.sections[14];
-        CHECK_EQUAL(0x01327658, section.start);
-        CHECK_EQUAL(0x0000AB48, section.length);
-        CHECK_EQUAL("__bss", section.name);
-        CHECK_EQUAL("__DATA", section.segmentName);
+    section = mapFile.sections[14];
+    REQUIRE(0x01327658 == section.start);
+    REQUIRE(0x0000AB48 == section.length);
+    REQUIRE("__bss" == section.name);
+    REQUIRE("__DATA" == section.segmentName);
 
-        CHECK_EQUAL(3, mapFile.symbols.size());
+    REQUIRE(3 == mapFile.symbols.size());
 
-        Symbol symbol = mapFile.symbols[0];
-        CHECK_EQUAL(0x00001F40, symbol.start);
-        CHECK_EQUAL(0x000000D0, symbol.length);
-        CHECK_EQUAL("_U3CRegisterObjectU3Ec__AnonStorey2__ctor_m12113", symbol.name);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
-        CHECK_EQUAL("/var/folders/8v/wyyvr8zd5rn3l9nfxz1dv4pw0000gn/T/il2cpp_cache/F14BC2A7F7430F841ABE66A030997030.o", symbol.objectFile);
+    Symbol symbol = mapFile.symbols[0];
+    REQUIRE(0x00001F40 == symbol.start);
+    REQUIRE(0x000000D0 == symbol.length);
+    REQUIRE("_U3CRegisterObjectU3Ec__AnonStorey2__ctor_m12113" == symbol.name);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
+    REQUIRE("/var/folders/8v/wyyvr8zd5rn3l9nfxz1dv4pw0000gn/T/il2cpp_cache/F14BC2A7F7430F841ABE66A030997030.o" == symbol.objectFile);
 
-        symbol = mapFile.symbols[2];
-        CHECK_EQUAL(0x00002030, symbol.start);
-        CHECK_EQUAL(0x00000120, symbol.length);
-        CHECK_EQUAL("_U3CRegisterObjectU3Ec__AnonStorey2_U3CU3Em__1_m12114", symbol.name);
-        CHECK_EQUAL(kSegmentTypeCode, symbol.segmentType);
-        CHECK_EQUAL("/var/folders/8v/wyyvr8zd5rn3l9nfxz1dv4pw0000gn/T/il2cpp_cache/51181665DE4ABD7FD9F780396E0CD80A.o", symbol.objectFile);
-    }
+    symbol = mapFile.symbols[2];
+    REQUIRE(0x00002030 == symbol.start);
+    REQUIRE(0x00000120 == symbol.length);
+    REQUIRE("_U3CRegisterObjectU3Ec__AnonStorey2_U3CU3Em__1_m12114" == symbol.name);
+    REQUIRE(kSegmentTypeCode == symbol.segmentType);
+    REQUIRE("/var/folders/8v/wyyvr8zd5rn3l9nfxz1dv4pw0000gn/T/il2cpp_cache/51181665DE4ABD7FD9F780396E0CD80A.o" == symbol.objectFile);
 }
 
 #endif // ENABLE_UNIT_TESTS

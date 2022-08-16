@@ -3,8 +3,7 @@
 #include "vm/Reflection.h"
 #include "vm/StackTrace.h"
 #include "il2cpp-class-internals.h"
-
-using namespace il2cpp::vm;
+#include "gc/GarbageCollector.h"
 
 namespace il2cpp
 {
@@ -16,10 +15,10 @@ namespace System
 {
 namespace Diagnostics
 {
-    static bool IsCalledFromSystemDiagnosticsStackTrace(const StackFrames& stack)
+    static bool IsCalledFromSystemDiagnosticsStackTrace(const vm::StackFrames& stack)
     {
-        for (StackFrames::const_iterator frame = stack.begin(); frame != stack.end(); ++frame)
-            if (strcmp(frame->method->declaring_type->namespaze, "System.Diagnostics") == 0 && strcmp(frame->method->declaring_type->name, "StackTrace") == 0)
+        for (vm::StackFrames::const_iterator frame = stack.begin(); frame != stack.end(); ++frame)
+            if (strcmp(frame->method->klass->namespaze, "System.Diagnostics") == 0 && strcmp(frame->method->klass->name, "StackTrace") == 0)
                 return true;
 
         return false;
@@ -27,8 +26,8 @@ namespace Diagnostics
 
     static bool FrameNeedsSkipped(const Il2CppStackFrameInfo& frame)
     {
-        return strcmp(frame.method->declaring_type->namespaze, "System.Diagnostics") == 0 &&
-            (strcmp(frame.method->declaring_type->name, "StackFrame") == 0 || strcmp(frame.method->declaring_type->name, "StackTrace") == 0);
+        return strcmp(frame.method->klass->namespaze, "System.Diagnostics") == 0 &&
+            (strcmp(frame.method->klass->name, "StackFrame") == 0 || strcmp(frame.method->klass->name, "StackTrace") == 0);
     }
 
     bool StackFrame::get_frame_info(
@@ -44,7 +43,7 @@ namespace Diagnostics
         const int kSkippedFramesFromMSCorlibStackFrameMethods = 2;
         const int kSkippedFramesFromMSCorlibStackTraceMethods = 2;
 
-        const StackFrames& stack = *StackTrace::GetStackFrames();
+        const vm::StackFrames& stack = *vm::StackTrace::GetCachedStackFrames(skip);
 
         // Always ignore the skipped frames from System.Diagnostics.StackFrame, as we know we are always called from it.
         // These frames might be inlined or optimized away by the C++ compiler, so we will inspect the actual stack
@@ -60,7 +59,7 @@ namespace Diagnostics
 
         // Now look in the actual stack trace to see if anything we ignored above is really there. We don't know what the C++
         // compile will do with these frames, so we need to inspect each frame and check.
-        for (StackFrames::const_iterator frame = stack.begin(); frame != stack.end(); ++frame)
+        for (vm::StackFrames::const_iterator frame = stack.begin(); frame != stack.end(); ++frame)
         {
             if (FrameNeedsSkipped(*frame))
                 skip++;
@@ -74,8 +73,8 @@ namespace Diagnostics
 
         const Il2CppStackFrameInfo& info = stack[static_cast<size_t>(index)];
 
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(StackFrame::get_frame_info, "use gc write barrier");
-        *method = Reflection::GetMethodObject(info.method, info.method->declaring_type);
+        *method = vm::Reflection::GetMethodObject(info.method, info.method->klass);
+        il2cpp::gc::GarbageCollector::SetWriteBarrier((void**)method);
 
         return true;
     }

@@ -1,4 +1,4 @@
-#include "il2cpp-config.h"
+#include "os/c-api/il2cpp-config-platforms.h"
 
 #if IL2CPP_THREADS_WIN32
 
@@ -40,6 +40,11 @@ namespace os
     void MutexImpl::Unlock()
     {
         ReleaseMutex(m_MutexHandle);
+    }
+
+    void* MutexImpl::GetOSHandle()
+    {
+        return (void*)m_MutexHandle;
     }
 }
 }

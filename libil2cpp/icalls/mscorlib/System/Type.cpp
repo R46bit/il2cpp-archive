@@ -10,6 +10,7 @@
 #include "vm/Array.h"
 #include "vm/Assembly.h"
 #include "vm/Class.h"
+#include "vm/ClassInlines.h"
 #include "vm/GenericClass.h"
 #include "vm/MetadataCache.h"
 #include "vm/Object.h"
@@ -24,7 +25,6 @@
 #include <vector>
 #include <string>
 
-using namespace il2cpp::vm;
 using il2cpp::metadata::GenericMetadata;
 using il2cpp::metadata::Il2CppTypeVector;
 using il2cpp::utils::StringUtils;
@@ -46,31 +46,31 @@ namespace System
     {
         Il2CppClass *klass;
 
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoType::get_IsGenericTypeDefinition, "Check for custom Type implementations");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoType::get_IsGenericTypeDefinition, "Check for custom Type implementations");
         //if (!IS_MONOTYPE (type))
         //  return FALSE;
 
         if (type->type->byref)
             return false;
 
-        klass = Class::FromIl2CppType(type->type);
-        return klass->generic_class != NULL || Class::IsGeneric(klass);
+        klass = vm::Class::FromIl2CppType(type->type);
+        return klass->generic_class != NULL || vm::Class::IsGeneric(klass);
     }
 
     bool Type::get_IsGenericTypeDefinition(Il2CppReflectionType * type)
     {
         Il2CppClass *klass;
 
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoType::get_IsGenericTypeDefinition, "Check for custom Type implementations");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(MonoType::get_IsGenericTypeDefinition, "Check for custom Type implementations");
         //if (!IS_MONOTYPE (type))
         //  return FALSE;
 
         if (type->type->byref)
             return false;
 
-        klass = Class::FromIl2CppType(type->type);
+        klass = vm::Class::FromIl2CppType(type->type);
 
-        return Class::IsGeneric(klass);
+        return vm::Class::IsGeneric(klass);
     }
 
     int32_t Type::GetGenericParameterPosition(Il2CppReflectionType* type)
@@ -87,14 +87,14 @@ namespace System
         if (type->type->byref)
             return NULL;
 
-        klass = Class::FromIl2CppType(type->type);
-        if (Class::IsGeneric(klass))
+        klass = vm::Class::FromIl2CppType(type->type);
+        if (vm::Class::IsGeneric(klass))
             return type;
 
         if (klass->generic_class)
         {
-            Il2CppClass *generic_class = GenericClass::GetTypeDefinition(klass->generic_class);
-            return Reflection::GetTypeObject(generic_class->byval_arg);
+            Il2CppClass *generic_class = vm::GenericClass::GetTypeDefinition(klass->generic_class);
+            return vm::Reflection::GetTypeObject(&generic_class->byval_arg);
         }
 
         return NULL;
@@ -167,7 +167,7 @@ namespace System
             {
                 if (vm::Type::IsEnum(type->type))
                 {
-                    t = Class::GetEnumBaseType(vm::Type::GetClass(type->type))->type;
+                    t = vm::Class::GetEnumBaseType(vm::Type::GetClass(type->type))->type;
                     goto handle_enum;
                 }
                 else
@@ -204,15 +204,12 @@ namespace System
 
     Il2CppReflectionType * Type::internal_from_handle(intptr_t ptr)
     {
-        const Il2CppType* type = (const Il2CppType*)ptr;
-        Il2CppClass *klass = Class::FromIl2CppType(type);
-
-        return il2cpp::vm::Reflection::GetTypeObject(klass->byval_arg);
+        return vm::Type::GetTypeFromHandle(ptr);
     }
 
 #define CHECK_IF_NULL(v)    \
     if ( (v) == NULL && throwOnError ) \
-        Exception::Raise (Exception::GetTypeLoadException ()); \
+        vm::Exception::Raise (vm::Exception::GetTypeLoadException (info)); \
     if ( (v) == NULL ) \
         return NULL;
 
@@ -226,12 +223,20 @@ namespace System
         if (!parser.Parse())
         {
             if (throwOnError)
-                Exception::Raise(Exception::GetArgumentException("typeName", "Invalid type name"));
+                vm::Exception::Raise(vm::Exception::GetArgumentException("typeName", "Invalid type name"));
             else
                 return NULL;
         }
 
-        const Il2CppType *type = vm::Class::il2cpp_type_from_type_info(info, throwOnError, ignoreCase);
+        vm::TypeSearchFlags searchFlags = vm::kTypeSearchFlagNone;
+
+        if (throwOnError)
+            searchFlags = static_cast<vm::TypeSearchFlags>(searchFlags | vm::kTypeSearchFlagThrowOnError);
+
+        if (ignoreCase)
+            searchFlags = static_cast<vm::TypeSearchFlags>(searchFlags | vm::kTypeSearchFlagIgnoreCase);
+
+        const Il2CppType *type = vm::Class::il2cpp_type_from_type_info(info, searchFlags);
 
         CHECK_IF_NULL(type);
 
@@ -240,15 +245,15 @@ namespace System
 
     bool Type::IsArrayImpl(Il2CppReflectionType *t)
     {
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(Type::IsArrayImpl, "Faulty implementation?");
+        IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(Type::IsArrayImpl, "Faulty implementation?");
 
-        Il2CppClass* typeInfo = Class::FromSystemType(t);
+        Il2CppClass* typeInfo = vm::Class::FromSystemType(t);
         return typeInfo->rank > 0;
     }
 
     bool Type::IsInstanceOfType(Il2CppReflectionType *type, Il2CppObject * obj)
     {
-        Il2CppClass *klass = Class::FromIl2CppType(type->type);
+        Il2CppClass *klass = vm::Class::FromIl2CppType(type->type);
         return il2cpp::vm::Object::IsInst(obj, klass) != NULL;
     }
 
@@ -269,12 +274,12 @@ namespace System
             il2cpp_raise_exception(vm::Exception::GetTypeLoadException(message.c_str()));
         }
 
-        const Il2CppClass *klass = Class::FromIl2CppType(type->type);
+        const Il2CppClass *klass = vm::Class::FromIl2CppType(type->type);
 
         if ((strcmp(klass->namespaze, "System") == 0 && strcmp(klass->name, "TypedReference") == 0))
         {
             std::string message;
-            message + "Could not create array type '" + klass->namespaze + "." + klass->name + "[]'.";
+            message = "Could not create array type '" + std::string(klass->namespaze) + "." + klass->name + "[]'.";
             il2cpp_raise_exception(vm::Exception::GetTypeLoadException(message.c_str()));
         }
     }
@@ -291,7 +296,7 @@ namespace System
         else
             arrayClass = il2cpp_bounded_array_class_get(klass, rank, true);
 
-        return arrayClass != NULL ? Reflection::GetTypeObject(arrayClass->byval_arg) : NULL;
+        return arrayClass != NULL ? vm::Reflection::GetTypeObject(&arrayClass->byval_arg) : NULL;
     }
 
     static std::string FormatExceptionMessageForNonConstructableGenericType(const Il2CppType* type, const Il2CppTypeVector& genericArguments)
@@ -314,10 +319,10 @@ namespace System
     Il2CppReflectionType * Type::MakeGenericType(Il2CppReflectionType* type, Il2CppArray* genericArgumentTypes)
     {
         const Il2CppType* genericTypeDefinitionType = type->type;
-        Il2CppClass* genericTypeDefinitionClass = Class::FromIl2CppType(genericTypeDefinitionType);
-        IL2CPP_ASSERT(Class::IsGeneric(genericTypeDefinitionClass));
+        Il2CppClass* genericTypeDefinitionClass = vm::Class::FromIl2CppType(genericTypeDefinitionType);
+        IL2CPP_ASSERT(vm::Class::IsGeneric(genericTypeDefinitionClass));
 
-        uint32_t arrayLength = Array::GetLength(genericArgumentTypes);
+        uint32_t arrayLength = vm::Array::GetLength(genericArgumentTypes);
         Il2CppTypeVector genericArguments;
         genericArguments.reserve(arrayLength);
 
@@ -327,31 +332,22 @@ namespace System
             genericArguments.push_back(genericArgumentType->type);
         }
 
-        const Il2CppGenericInst* inst = MetadataCache::GetGenericInst(genericArguments);
+        const Il2CppGenericInst* inst = vm::MetadataCache::GetGenericInst(genericArguments);
         Il2CppGenericClass* genericClass = GenericMetadata::GetGenericClass(genericTypeDefinitionClass, inst);
-        Il2CppClass* genericInstanceTypeClass = GenericClass::GetClass(genericClass);
+        Il2CppClass* genericInstanceTypeClass = vm::GenericClass::GetClass(genericClass);
 
         if (!genericInstanceTypeClass)
         {
-            Exception::Raise(Exception::GetNotSupportedException(FormatExceptionMessageForNonConstructableGenericType(genericTypeDefinitionType, genericArguments).c_str()));
+            vm::Exception::Raise(vm::Exception::GetNotSupportedException(FormatExceptionMessageForNonConstructableGenericType(genericTypeDefinitionType, genericArguments).c_str()));
             return NULL;
         }
 
-        return Reflection::GetTypeObject(genericInstanceTypeClass->byval_arg);
+        return vm::Reflection::GetTypeObject(&genericInstanceTypeClass->byval_arg);
     }
 
     bool Type::type_is_assignable_from(Il2CppReflectionType * type, Il2CppReflectionType * c)
     {
-        Il2CppClass *klass;
-        Il2CppClass *klassc;
-
-        klass = Class::FromIl2CppType(type->type);
-        klassc = Class::FromIl2CppType(c->type);
-
-        if (type->type->byref && !c->type->byref)
-            return false;
-
-        return Class::IsAssignableFrom(klass, klassc);
+        return vm::Class::IsAssignableFrom(type, c);
     }
 
     bool Type::type_is_subtype_of(Il2CppReflectionType *type, Il2CppReflectionType *c, bool check_interfaces)
@@ -364,29 +360,29 @@ namespace System
         if (!c) /* FIXME: dont know what do do here */
             return false;
 
-        klass = Class::FromSystemType(type);
-        klassc = Class::FromSystemType(c);
+        klass = vm::Class::FromSystemType(type);
+        klassc = vm::Class::FromSystemType(c);
 
         /*if (type->type->byref)
             return klassc == mono_defaults.object_class;*/
 
-        return Class::IsSubclassOf(klass, klassc, check_interfaces);
+        return vm::Class::IsSubclassOf(klass, klassc, check_interfaces);
     }
 
     Il2CppReflectionType* Type::make_byref_type(Il2CppReflectionType *type)
     {
         Il2CppClass *klass;
 
-        klass = Class::FromIl2CppType(type->type);
+        klass = vm::Class::FromIl2CppType(type->type);
 
-        return il2cpp::vm::Reflection::GetTypeObject(klass->this_arg);
+        return il2cpp::vm::Reflection::GetTypeObject(&klass->this_arg);
     }
 
     Il2CppReflectionType * Type::MakePointerType(Il2CppReflectionType* type)
     {
-        Il2CppClass* pointerType = Class::GetPtrClass(type->type);
+        Il2CppClass* pointerType = vm::Class::GetPtrClass(type->type);
 
-        return Reflection::GetTypeObject(pointerType->byval_arg);
+        return vm::Reflection::GetTypeObject(&pointerType->byval_arg);
     }
 
     void Type::GetInterfaceMapData(Il2CppReflectionType* type, Il2CppReflectionType* iface, Il2CppArray** targets, Il2CppArray** methods)
@@ -394,7 +390,7 @@ namespace System
         Il2CppClass* klass = il2cpp_class_from_il2cpp_type(type->type);
         Il2CppClass* iklass = il2cpp_class_from_il2cpp_type(iface->type);
 
-        int32_t numberOfMethods = (int32_t)Class::GetNumMethods(iklass);
+        int32_t numberOfMethods = (int32_t)vm::Class::GetNumMethods(iklass);
         *targets = il2cpp_array_new(il2cpp_defaults.method_info_class, numberOfMethods);
         *methods = il2cpp_array_new(il2cpp_defaults.method_info_class, numberOfMethods);
 
@@ -402,7 +398,7 @@ namespace System
             return;
 
         void* unused = NULL;
-        Class::Init(klass);
+        vm::Class::Init(klass);
         const VirtualInvokeData* invokeDataStart;
 
         // So this part is tricky. GetInterfaceInvokeDataFromVTable takes an object pointer in order to support
@@ -411,22 +407,21 @@ namespace System
         // It is safe because the only fields GetInterfaceInvokeDataFromVTable accesses are the klass and identity fields
         if (!klass->is_import_or_windows_runtime)
         {
-            Il2CppObject fakeObject;
+            Il2CppObject fakeObject = {};
             fakeObject.klass = klass;
-            fakeObject.monitor = NULL;
-            invokeDataStart = &Class::GetInterfaceInvokeDataFromVTable(&fakeObject, iklass, 0);
+            invokeDataStart = &vm::ClassInlines::GetInterfaceInvokeDataFromVTable(&fakeObject, iklass, 0);
         }
         else
         {
             Il2CppComObject fakeComObject;
+            memset(&fakeComObject, 0, sizeof(fakeComObject));
             fakeComObject.klass = klass;
-            fakeComObject.monitor = NULL;
 
             // This makes GetInterfaceInvokeDataFromVTable believe that the COM object is dead,
             // thus making it skip asking native side whether a particular interface is supported
             fakeComObject.identity = NULL;
 
-            invokeDataStart = &Class::GetInterfaceInvokeDataFromVTable(&fakeComObject, iklass, 0);
+            invokeDataStart = &vm::ClassInlines::GetInterfaceInvokeDataFromVTable(&fakeComObject, iklass, 0);
         }
 
         for (int i = 0; i < numberOfMethods; ++i)
@@ -456,16 +451,25 @@ namespace System
 
         Il2CppArray* res = il2cpp_array_new(il2cpp_defaults.monotype_class, genericParameter->constraintsCount);
         for (int i = 0; i < genericParameter->constraintsCount; i++)
-            il2cpp_array_setref(res, i, il2cpp_type_get_object(MetadataCache::GetGenericParameterConstraintFromIndex(genericParameter->constraintsStart + i)));
+            il2cpp_array_setref(res, i, il2cpp_type_get_object(vm::MetadataCache::GetGenericParameterConstraintFromIndex(genericParameter->constraintsStart + i)));
 
         return res;
     }
 
     void Type::GetPacking(Il2CppReflectionType* type, int32_t* packing, int32_t* size)
     {
-        NOT_IMPLEMENTED_ICALL_NO_ASSERT(Type::GetPacking, "In progress, need this function to not assert to test other aspects of StructLayout attribute");
-        *packing = 8;
-        *size = 0;
+        const Il2CppType* runtimeType = vm::Type::IsGenericInstance(type->type) ? vm::Type::GetGenericTypeDefintion(type->type) : type->type;
+        Il2CppClass* klass = vm::Class::FromIl2CppType(runtimeType);
+        TypeDefinitionIndex index = vm::MetadataCache::GetIndexForTypeDefinition(klass);
+        if (vm::MetadataCache::StructLayoutPackIsDefault(index))
+            *packing = 8;
+        else
+            *packing = vm::MetadataCache::StructLayoutPack(index);
+
+        if (vm::MetadataCache::StructLayoutSizeIsDefault(index))
+            *size = 0;
+        else
+            *size = klass->native_size;
     }
 } /* namespace System */
 } /* namespace mscorlib */

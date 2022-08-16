@@ -1,8 +1,9 @@
 #pragma once
 
-#if IL2CPP_TARGET_POSIX
+#if IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
 
 #include <pthread.h>
+#include <stdint.h>
 #include <limits.h>
 #include "utils/NonCopyable.h"
 #include "os/WaitStatus.h"
@@ -46,6 +47,8 @@ namespace posix
         /// right away and check for APCs. After APCs have been handled, the object will go
         /// back to waiting except if the wait timeout has expired.
         void InterruptWait();
+
+        void* GetOSHandle();
 
         static void LockWaitObjectDeletion();
         static void UnlockWaitObjectDeletion();

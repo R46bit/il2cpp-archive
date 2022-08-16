@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 #include "../char-conversions.h"
-#include "../il2cpp-object-internals.h"
+#include "il2cpp-object-internals.h"
 #include "utils/Functional.h"
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
@@ -159,7 +159,7 @@ namespace utils
         if ((result = (char*)IL2CPP_MALLOC(length)))
 #if IL2CPP_COMPILER_MSVC
             strcpy_s(result, length, strSource);
-#elif IL2CPP_TARGET_LINUX || IL2CPP_TARGET_TIZEN
+#elif IL2CPP_TARGET_LINUX
             strncpy(result, strSource, length);
 #else
             strlcpy(result, strSource, length);
