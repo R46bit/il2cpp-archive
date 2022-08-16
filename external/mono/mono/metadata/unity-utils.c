@@ -964,7 +964,7 @@ MonoClass* mono_unity_generic_container_get_parameter_class(MonoGenericContainer
 	return mono_class_from_generic_parameter_internal(param);
 }
 
-MonoString* mono_unity_string_append_assembly_name_if_necessary(MonoString* typeName, const char* assemblyName)
+MonoString* mono_unity_string_append_assembly_name_if_necessary(MonoString* typeName, MonoMethod* callingMethod)
 {
 	if (typeName != NULL)
 	{
@@ -979,7 +979,7 @@ MonoString* mono_unity_string_append_assembly_name_if_necessary(MonoString* type
 			{
 				GString* assemblyQualifiedName = g_string_new(0);
 				char* name = mono_string_to_utf8_checked(typeName, &unused);
-				g_string_append_printf(assemblyQualifiedName, "%s, %s", name, assemblyName);
+				g_string_append_printf(assemblyQualifiedName, "%s, %s", name, callingMethod->klass->image->name);
 
 				typeName = mono_string_new(mono_domain_get(), assemblyQualifiedName->str);
 

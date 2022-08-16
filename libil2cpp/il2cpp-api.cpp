@@ -2,7 +2,9 @@
 #include "il2cpp-object-internals.h"
 #include "il2cpp-runtime-stats.h"
 
+#include "gc/WriteBarrier.h"
 #include "os/StackTrace.h"
+#include "os/Image.h"
 #include "vm/Array.h"
 #include "vm/Assembly.h"
 #include "vm/Class.h"
@@ -25,7 +27,6 @@
 #include "vm/StackTrace.h"
 #include "vm/String.h"
 #include "vm/Thread.h"
-#include "vm/ThreadPool.h"
 #include "vm/Type.h"
 #include "utils/Exception.h"
 #include "utils/Logging.h"
@@ -579,6 +580,41 @@ void il2cpp_unhandled_exception(Il2CppException* exc)
     Runtime::UnhandledException(exc);
 }
 
+void il2cpp_native_stack_trace(const Il2CppException * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName)
+{
+#if IL2CPP_ENABLE_NATIVE_INSTRUCTION_POINTER_EMISSION && !IL2CPP_TINY
+    if (ex == NULL || ex->native_trace_ips == NULL)
+    {
+        *numFrames = 0;
+        *addresses = NULL;
+        *imageUUID = NULL;
+        *imageName = NULL;
+        return;
+    }
+
+    *numFrames = il2cpp_array_length(ex->native_trace_ips);
+
+    if (*numFrames <= 0)
+    {
+        *addresses = NULL;
+        *imageUUID = NULL;
+        *imageName = NULL;
+    }
+    else
+    {
+        *addresses = static_cast<uintptr_t*>(il2cpp_alloc((*numFrames) * sizeof(uintptr_t)));
+        for (int i = 0; i < *numFrames; i++)
+        {
+            uintptr_t ptrAddr = il2cpp_array_get(ex->native_trace_ips, uintptr_t, i);
+            (*addresses)[i] = ptrAddr;
+        }
+
+        *imageUUID = il2cpp::os::Image::GetImageUUID();
+        *imageName = il2cpp::os::Image::GetImageName();
+    }
+#endif
+}
+
 // field
 
 const char* il2cpp_field_get_name(FieldInfo *field)
@@ -657,6 +693,11 @@ int32_t il2cpp_gc_collect_a_little()
     return GarbageCollector::CollectALittle();
 }
 
+void il2cpp_gc_start_incremental_collection()
+{
+    GarbageCollector::StartIncrementalCollection();
+}
+
 void il2cpp_gc_enable()
 {
     GarbageCollector::Enable();
@@ -670,6 +711,11 @@ void il2cpp_gc_disable()
 bool il2cpp_gc_is_disabled()
 {
     return GarbageCollector::IsDisabled();
+}
+
+void il2cpp_gc_set_mode(Il2CppGCMode mode)
+{
+    GarbageCollector::SetMode(mode);
 }
 
 bool il2cpp_gc_is_incremental()
@@ -715,6 +761,16 @@ void il2cpp_start_gc_world()
     il2cpp::gc::GarbageCollector::StartWorld();
 }
 
+void* il2cpp_gc_alloc_fixed(size_t size)
+{
+    return il2cpp::gc::GarbageCollector::AllocateFixed(size, NULL);
+}
+
+void il2cpp_gc_free_fixed(void* address)
+{
+    il2cpp::gc::GarbageCollector::FreeFixed(address);
+}
+
 // gchandle
 
 uint32_t il2cpp_gchandle_new(Il2CppObject *obj, bool pinned)
@@ -724,7 +780,8 @@ uint32_t il2cpp_gchandle_new(Il2CppObject *obj, bool pinned)
 
 uint32_t il2cpp_gchandle_new_weakref(Il2CppObject *obj, bool track_resurrection)
 {
-    return GCHandle::NewWeakref(obj, track_resurrection);
+    // Note that the call to Get will assert if an error occurred.
+    return GCHandle::NewWeakref(obj, track_resurrection).Get();
 }
 
 Il2CppObject* il2cpp_gchandle_get_target(uint32_t gchandle)
@@ -742,8 +799,7 @@ void il2cpp_gchandle_foreach_get_target(void(*func)(void*, void*), void* userDat
 
 void il2cpp_gc_wbarrier_set_field(Il2CppObject *obj, void **targetAddress, void *object)
 {
-    *targetAddress = object;
-    GarbageCollector::SetWriteBarrier(targetAddress);
+    il2cpp::gc::WriteBarrier::GenericStore(targetAddress, object);
 }
 
 bool il2cpp_gc_has_strict_wbarriers()
@@ -802,14 +858,9 @@ uint32_t il2cpp_allocation_granularity()
 
 // liveness
 
-void* il2cpp_unity_liveness_calculation_begin(Il2CppClass* filter, int max_object_count, il2cpp_register_object_callback callback, void* userdata, il2cpp_WorldChangedCallback onWorldStarted, il2cpp_WorldChangedCallback onWorldStopped)
+void* il2cpp_unity_liveness_allocate_struct(Il2CppClass* filter, int max_object_count, il2cpp_register_object_callback callback, void* userdata, il2cpp_liveness_reallocate_callback reallocate)
 {
-    return Liveness::Begin(filter, max_object_count, callback, userdata, onWorldStarted, onWorldStopped);
-}
-
-void il2cpp_unity_liveness_calculation_end(void* state)
-{
-    Liveness::End(state);
+    return Liveness::AllocateStruct(filter, max_object_count, callback, userdata, reallocate);
 }
 
 void il2cpp_unity_liveness_calculation_from_root(Il2CppObject* root, void* state)
@@ -820,6 +871,16 @@ void il2cpp_unity_liveness_calculation_from_root(Il2CppObject* root, void* state
 void il2cpp_unity_liveness_calculation_from_statics(void* state)
 {
     Liveness::FromStatics(state);
+}
+
+void il2cpp_unity_liveness_finalize(void* state)
+{
+    Liveness::Finalize(state);
+}
+
+void il2cpp_unity_liveness_free_struct(void* state)
+{
+    Liveness::FreeStruct(state);
 }
 
 // method
@@ -1051,26 +1112,12 @@ bool il2cpp_monitor_try_wait(Il2CppObject* obj, uint32_t timeout)
 
 Il2CppObject* il2cpp_runtime_invoke_convert_args(const MethodInfo *method, void *obj, Il2CppObject **params, int paramCount, Il2CppException **exc)
 {
-    // Our embedding API has historically taken pointers to unboxed value types, rather than Il2CppObjects.
-    // However, with the introduction of adjustor thunks, our invokees expect us to pass them Il2CppObject*, or at least something that
-    // ressembles boxed value type. Since it's not going to access any of the Il2CppObject* fields,
-    // it's fine to just subtract sizeof(Il2CppObject) from obj pointer
-    if (method->klass->valuetype)
-        obj = static_cast<Il2CppObject*>(obj) - 1;
-
     return Runtime::InvokeConvertArgs(method, obj, params, paramCount, exc);
 }
 
 Il2CppObject* il2cpp_runtime_invoke(const MethodInfo *method,
     void *obj, void **params, Il2CppException **exc)
 {
-    // Our embedding API has historically taken pointers to unboxed value types, rather than Il2CppObjects.
-    // However, with the introduction of adjustor thunks, our invokees expect us to pass them Il2CppObject*, or at least something that
-    // ressembles boxed value type. Since it's not going to access any of the Il2CppObject* fields,
-    // it's fine to just subtract sizeof(Il2CppObject) from obj pointer
-    if (method->klass->valuetype)
-        obj = static_cast<Il2CppObject*>(obj) - 1;
-
     return Runtime::Invoke(method, obj, params, exc);
 }
 
@@ -1309,7 +1356,7 @@ size_t il2cpp_image_get_class_count(const Il2CppImage * image)
 
 const Il2CppClass* il2cpp_image_get_class(const Il2CppImage * image, size_t index)
 {
-    return Image::GetType(image, index);
+    return Image::GetType(image, static_cast<AssemblyTypeIndex>(index));
 }
 
 Il2CppManagedMemorySnapshot* il2cpp_capture_memory_snapshot()
@@ -1371,27 +1418,27 @@ void il2cpp_unity_install_unitytls_interface(const void* unitytlsInterfaceStruct
 // Custom Attributes
 Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_class(Il2CppClass *klass)
 {
-    return (Il2CppCustomAttrInfo*)(uintptr_t)MetadataCache::GetCustomAttributeIndex(klass->image, klass->token);
+    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(klass->image, klass->token));
 }
 
 Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_method(const MethodInfo * method)
 {
-    return (Il2CppCustomAttrInfo*)(uintptr_t)MetadataCache::GetCustomAttributeIndex(method->klass->image, method->token);
+    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(method->klass->image, method->token));
 }
 
 bool il2cpp_custom_attrs_has_attr(Il2CppCustomAttrInfo *ainfo, Il2CppClass *attr_klass)
 {
-    return MetadataCache::HasAttribute((CustomAttributeIndex)(uintptr_t)ainfo, attr_klass);
+    return MetadataCache::HasAttribute(reinterpret_cast<Il2CppMetadataCustomAttributeHandle>(ainfo), attr_klass);
 }
 
 Il2CppObject* il2cpp_custom_attrs_get_attr(Il2CppCustomAttrInfo *ainfo, Il2CppClass *attr_klass)
 {
-    return Reflection::GetCustomAttribute((CustomAttributeIndex)(uintptr_t)ainfo, attr_klass);
+    return Reflection::GetCustomAttribute(reinterpret_cast<Il2CppMetadataCustomAttributeHandle>(ainfo), attr_klass);
 }
 
 Il2CppArray*  il2cpp_custom_attrs_construct(Il2CppCustomAttrInfo *ainfo)
 {
-    return Reflection::ConstructCustomAttributes((CustomAttributeIndex)(uintptr_t)ainfo);
+    return Reflection::ConstructCustomAttributes(reinterpret_cast<Il2CppMetadataCustomAttributeHandle>(ainfo));
 }
 
 void il2cpp_custom_attrs_free(Il2CppCustomAttrInfo *ainfo)

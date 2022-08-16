@@ -8,6 +8,9 @@
 #include "utils/StringUtils.h"
 #include "utils/Memory.h"
 
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
+
 namespace il2cpp
 {
 namespace icalls
@@ -22,7 +25,7 @@ namespace IO
 {
 namespace MemoryMappedFiles
 {
-    static os::FastMutex s_Mutex;
+    static baselib::ReentrantLock s_Mutex;
     static std::vector<os::FileHandle*> s_OwnedFileHandles;
 
     typedef struct
@@ -101,10 +104,10 @@ namespace MemoryMappedFiles
         return error;
     }
 
-    static os::FileHandle* OpenHandle(os::FileHandle* handle, Il2CppString* mapName, os::MemoryMappedFileMode mode, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
+    static os::FileHandle* OpenHandle(os::FileHandle* handle, Il2CppChar* mapName, os::MemoryMappedFileMode mode, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
     {
         os::MemoryMappedFileError memoryMappedFileError = os::NO_MEMORY_MAPPED_FILE_ERROR;
-        std::string utf8MapNameString = mapName != NULL ? utils::StringUtils::Utf16ToUtf8(mapName->chars) : std::string();
+        std::string utf8MapNameString = mapName != NULL ? utils::StringUtils::Utf16ToUtf8(mapName) : std::string();
         const char* utf8MapName = !utf8MapNameString.empty() ? utf8MapNameString.c_str() : NULL;
         os::FileHandle* memoryMappedFileData = os::MemoryMappedFile::Create(handle, utf8MapName, mode, capacity, (os::MemoryMappedFileAccess)access, options, &memoryMappedFileError);
 
@@ -112,17 +115,17 @@ namespace MemoryMappedFiles
         return memoryMappedFileData;
     }
 
-    intptr_t MemoryMapImpl::OpenFileInternal(Il2CppString* path, int32_t mode, Il2CppString* mapName, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
+    intptr_t  MemoryMapImpl::OpenFileInternal(Il2CppChar* path, int32_t path_length, int32_t mode, Il2CppChar* mapName, int32_t mapName_length, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
     {
         IL2CPP_ASSERT(path || mapName);
+        os::FastAutoLock lock(&s_Mutex);
 
         *error = 0;
 
         os::FileHandle* file = NULL;
         if (path != NULL)
         {
-            os::FastAutoLock lock(&s_Mutex);
-            std::string filePath = utils::StringUtils::Utf16ToUtf8(path->chars);
+            std::string filePath = utils::StringUtils::Utf16ToUtf8(path);
             file = os::File::Open(filePath, mode, ConvertMemoryMappedFileAccessToIL2CPPFileAccess((os::MemoryMappedFileAccess)access), 0, options, error);
 
             s_OwnedFileHandles.push_back(file);
@@ -139,7 +142,7 @@ namespace MemoryMappedFiles
         return (intptr_t)result;
     }
 
-    intptr_t MemoryMapImpl::OpenHandleInternal(intptr_t handle, Il2CppString* mapName, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
+    intptr_t MemoryMapImpl::OpenHandleInternal(intptr_t handle, Il2CppChar* mapName, int32_t mapName_length, int64_t* capacity, int32_t access, int32_t options, int32_t* error)
     {
         IL2CPP_ASSERT(handle);
 
@@ -149,6 +152,7 @@ namespace MemoryMappedFiles
     void MemoryMapImpl::CloseMapping(intptr_t handle)
     {
         IL2CPP_ASSERT(handle);
+        os::FastAutoLock lock(&s_Mutex);
 
         os::FileHandle* file = (os::FileHandle*)handle;
 
@@ -163,11 +167,11 @@ namespace MemoryMappedFiles
         os::MemoryMappedFile::ConfigureHandleInheritability((os::FileHandle*)handle, inheritability);
     }
 
-    void MemoryMapImpl::Flush(intptr_t mmap_handle)
+    void MemoryMapImpl::Flush(intptr_t file_handle)
     {
-        IL2CPP_ASSERT(mmap_handle);
+        IL2CPP_ASSERT(file_handle);
 
-        MmapInstance *h = (MmapInstance*)mmap_handle;
+        MmapInstance *h = (MmapInstance*)file_handle;
         os::MemoryMappedFile::Flush(h->address, h->length);
     }
 } // namespace MemoryMappedFiles

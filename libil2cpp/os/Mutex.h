@@ -5,6 +5,9 @@
 #include "os/WaitStatus.h"
 #include "utils/NonCopyable.h"
 
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
+
 namespace il2cpp
 {
 namespace os
@@ -72,37 +75,44 @@ namespace os
 
     struct FastAutoLock : public il2cpp::utils::NonCopyable
     {
-        FastAutoLock(FastMutex* mutex)
+        FastAutoLock(baselib::ReentrantLock* mutex)
             : m_Mutex(mutex)
         {
-            m_Mutex->Lock();
+            m_Mutex->Acquire();
         }
 
         ~FastAutoLock()
         {
-            m_Mutex->Unlock();
+            m_Mutex->Release();
         }
 
-    private:
-        FastMutex* m_Mutex;
-    };
+#if IL2CPP_DEBUG
+        bool IsLock(baselib::ReentrantLock* mutex) const
+        {
+            return mutex == m_Mutex;
+        }
 
+#endif
+
+    private:
+        baselib::ReentrantLock* m_Mutex;
+    };
 
     struct FastAutoUnlock : public il2cpp::utils::NonCopyable
     {
-        FastAutoUnlock(FastMutex* mutex)
+        FastAutoUnlock(baselib::ReentrantLock* mutex)
             : m_Mutex(mutex)
         {
-            m_Mutex->Unlock();
+            m_Mutex->Release();
         }
 
         ~FastAutoUnlock()
         {
-            m_Mutex->Lock();
+            m_Mutex->Acquire();
         }
 
     private:
-        FastMutex* m_Mutex;
+        baselib::ReentrantLock* m_Mutex;
     };
 }
 }

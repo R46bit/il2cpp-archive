@@ -47,7 +47,7 @@ namespace Unity.IL2CPP.CompilerServices
     }
 
     /// <summary>
-    /// Use this attribute on a class, method, or property to inform the IL2CPP code conversion utility to override the
+    /// Use this attribute on an assembly, struct, class, method, or property to inform the IL2CPP code conversion utility to override the
     /// global setting for one of a few different runtime checks.
     ///
     /// Example:
@@ -59,7 +59,7 @@ namespace Unity.IL2CPP.CompilerServices
     ///         return tmp.ToString();
     ///     }
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Assembly | AttributeTargets.Struct | AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Delegate, Inherited = false, AllowMultiple = true)]
     public class Il2CppSetOptionAttribute : Attribute
     {
         public Option Option { get; private set; }

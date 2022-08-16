@@ -66,12 +66,12 @@ SUITE(File)
     {
         il2cpp::os::FileHandle* handle = il2cpp::os::File::GetStdInput();
 
-        CHECK_EQUAL((int32_t)il2cpp::os::File::Isatty(handle), UnityPalIsatty(handle));
+        CHECK_EQUAL((int32_t)il2cpp::os::File::Isatty(handle).Get(), UnityPalIsatty(handle));
     }
 
     TEST_FIXTURE(FileFixture, FileIsAttyWithValidButNoTTYMatchesClass)
     {
-        CHECK_EQUAL((int32_t)il2cpp::os::File::Isatty(handle), UnityPalIsatty(handle));
+        CHECK_EQUAL((int32_t)il2cpp::os::File::Isatty(handle).Get(), UnityPalIsatty(handle));
     }
 
 #endif
@@ -96,7 +96,7 @@ SUITE(File)
         UnityPalFileHandle* handle = NULL;
         handle = UnityPalOpen(CURRENT_DIRECTORY("file_does_not_exist"), kFileModeOpen, 0, 0, 0, &error);
 
-#if IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
+#if IL2CPP_TARGET_PS4
         CHECK_EQUAL(il2cpp::os::kErrorCodePathNotFound, error);
 #else
         CHECK_EQUAL(il2cpp::os::kErrorCodeFileNotFound, error);
@@ -868,7 +868,7 @@ SUITE(File)
 #endif // IL2CPP_USE_GENERIC_FILE
 
 // The utime function returns -1 on PS4. I'm not sure why.
-#if !IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5
+#if !IL2CPP_TARGET_PS4
     TEST(SetFileTimeNormal)
     {
         int error;
@@ -1550,7 +1550,7 @@ SUITE(File)
         CHECK_EQUAL(class_error, api_error);
     }
 
-#if !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5 && !IL2CPP_TARGET_WINRT && !IL2CPP_TARGET_XBOXONE
+#if !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_WINRT && !IL2CPP_TARGET_XBOXONE
     TEST(CreatePipeNormalResult_ReturnsTrue)
     {
         int error;
@@ -1592,7 +1592,7 @@ SUITE(File)
         il2cpp::os::File::Close(read_handle, &error);
         il2cpp::os::File::Close(write_handle, &error);
 
-        bool class_result = il2cpp::os::File::CreatePipe(&read_handle, &write_handle);
+        bool class_result = il2cpp::os::File::CreatePipe(&read_handle, &write_handle).Get();
         il2cpp::os::File::Close(read_handle, &error);
         il2cpp::os::File::Close(write_handle, &error);
 

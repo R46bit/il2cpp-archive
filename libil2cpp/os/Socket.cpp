@@ -7,6 +7,10 @@
 #include "os/Socket.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "utils/Expected.h"
+
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
 
 #if IL2CPP_TARGET_POSIX
 # include "os/Posix/SocketImpl.h"
@@ -32,7 +36,7 @@ namespace os
     typedef std::map<SocketHandle, SocketHandleEntry> SocketHandleTable;
 
     SocketHandle g_LastSocketHandle;
-    FastMutex g_SocketHandleTableMutex;
+    baselib::ReentrantLock g_SocketHandleTableMutex;
     SocketHandleTable g_SocketHandleTable;
 
     SocketHandle CreateSocketHandle(Socket* socket)
@@ -202,7 +206,7 @@ namespace os
         return m_Socket->Bind(address, port);
     }
 
-    WaitStatus Socket::Bind(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port)
+    utils::Expected<WaitStatus> Socket::Bind(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port)
     {
         return m_Socket->Bind(address, scope, port);
     }
@@ -217,7 +221,7 @@ namespace os
         return m_Socket->Connect(address, port);
     }
 
-    WaitStatus Socket::Connect(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port)
+    utils::Expected<WaitStatus> Socket::Connect(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port)
     {
         return m_Socket->Connect(address, scope, port);
     }
@@ -277,12 +281,12 @@ namespace os
         return m_Socket->SendTo(address, port, data, count, flags, len);
     }
 
-    WaitStatus Socket::SendTo(const char *path, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len)
+    utils::Expected<WaitStatus> Socket::SendTo(const char *path, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len)
     {
         return m_Socket->SendTo(path, data, count, flags, len);
     }
 
-    WaitStatus Socket::SendTo(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len)
+    utils::Expected<WaitStatus> Socket::SendTo(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len)
     {
         return m_Socket->SendTo(address, scope, port, data, count, flags, len);
     }
@@ -292,12 +296,12 @@ namespace os
         return m_Socket->RecvFrom(address, port, data, count, flags, len, ep);
     }
 
-    WaitStatus Socket::RecvFrom(const char *path, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len, os::EndPointInfo &ep)
+    utils::Expected<WaitStatus> Socket::RecvFrom(const char *path, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len, os::EndPointInfo &ep)
     {
         return m_Socket->RecvFrom(path, data, count, flags, len, ep);
     }
 
-    WaitStatus Socket::RecvFrom(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len, os::EndPointInfo &ep)
+    utils::Expected<WaitStatus> Socket::RecvFrom(uint8_t address[ipv6AddressSize], uint32_t scope, uint16_t port, const uint8_t *data, int32_t count, os::SocketFlags flags, int32_t *len, os::EndPointInfo &ep)
     {
         return m_Socket->RecvFrom(address, scope, port, data, count, flags, len, ep);
     }

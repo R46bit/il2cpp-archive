@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <ctype.h>
 
+#include "gc/WriteBarrier.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "utils/StringUtils.h"
 #include "vm/Assembly.h"
@@ -13,6 +14,8 @@
 #include "vm/GenericClass.h"
 #include "vm/GenericContainer.h"
 #include "vm/MetadataCache.h"
+#include "vm/Method.h"
+#include "vm/Object.h"
 #include "vm/Reflection.h"
 #include "vm/String.h"
 #include "vm/Type.h"
@@ -668,8 +671,8 @@ namespace vm
 
             case IL2CPP_TYPE_VAR:
             case IL2CPP_TYPE_MVAR:
-                str += MetadataCache::GetStringFromIndex(Type::GetGenericParameter(type)->nameIndex);
 
+                str += MetadataCache::GetGenericParameterName(Type::GetGenericParameterHandle(type));
                 if (type->byref)
                     str += '&';
                 break;
@@ -732,15 +735,19 @@ namespace vm
                 }
                 else if (Class::IsGeneric(klass) && (format != IL2CPP_TYPE_NAME_FORMAT_FULL_NAME) && (format != IL2CPP_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED))
                 {
-                    const Il2CppGenericContainer* container = Class::GetGenericContainer(klass);
+                    Il2CppMetadataGenericContainerHandle containerHandle = Class::GetGenericContainer(klass);
 
                     str += (format == IL2CPP_TYPE_NAME_FORMAT_IL ? '<' : '[');
 
-                    for (int32_t i = 0; i < container->type_argc; i++)
+                    uint32_t type_argc = MetadataCache::GetGenericContainerCount(containerHandle);
+                    for (uint32_t i = 0; i < type_argc; i++)
                     {
                         if (i)
                             str += ',';
-                        str += MetadataCache::GetStringFromIndex(GenericContainer::GetGenericParameter(container, i)->nameIndex);
+
+                        Il2CppMetadataGenericParameterHandle handle = MetadataCache::GetGenericParameterFromIndex(containerHandle, i);
+                        const char* name = MetadataCache::GetGenericParameterName(handle);
+                        str += name;
                     }
 
                     str += (format == IL2CPP_TYPE_NAME_FORMAT_IL ? '>' : ']');
@@ -883,7 +890,7 @@ namespace vm
 
             case IL2CPP_TYPE_VAR:
             case IL2CPP_TYPE_MVAR:
-                chunkReportFunc(const_cast<char*>(MetadataCache::GetStringFromIndex(Type::GetGenericParameter(type)->nameIndex)), userData);
+                chunkReportFunc(const_cast<char*>(MetadataCache::GetGenericParameterName(Type::GetGenericParameterHandle(type))), userData);
 
                 if (type->byref)
                 {
@@ -964,15 +971,17 @@ namespace vm
                 }
                 else if (Class::IsGeneric(klass) && (format != IL2CPP_TYPE_NAME_FORMAT_FULL_NAME) && (format != IL2CPP_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED))
                 {
-                    const Il2CppGenericContainer* container = Class::GetGenericContainer(klass);
+                    Il2CppMetadataGenericContainerHandle containerHandle = Class::GetGenericContainer(klass);
 
                     *bufferIter++ = (format == IL2CPP_TYPE_NAME_FORMAT_IL ? '<' : '[');
 
-                    for (int32_t i = 0; i < container->type_argc; ++i)
+                    uint32_t type_argc = MetadataCache::GetGenericContainerCount(containerHandle);
+                    for (uint32_t i = 0; i < type_argc; ++i)
                     {
                         if (i)
                             *bufferIter++ = ',';
-                        const char* idxStr = MetadataCache::GetStringFromIndex(GenericContainer::GetGenericParameter(container, i)->nameIndex);
+                        Il2CppMetadataGenericParameterHandle handle = GenericContainer::GetGenericParameter(containerHandle, i);
+                        const char* idxStr = MetadataCache::GetGenericParameterName(handle);
                         size_t len = strlen(idxStr);
                         for (size_t l = 0; l < len; ++l)
                         {
@@ -1023,13 +1032,13 @@ namespace vm
             return Class::FromIl2CppType(type->data.type);
 
         // IL2CPP_TYPE_SZARRAY stores element class in klass
-        return MetadataCache::GetTypeInfoFromTypeDefinitionIndex(type->data.klassIndex);
+        return MetadataCache::GetTypeInfoFromType(type);
     }
 
     const Il2CppType* Type::GetUnderlyingType(const Il2CppType *type)
     {
-        if (type->type == IL2CPP_TYPE_VALUETYPE && MetadataCache::GetTypeInfoFromTypeDefinitionIndex(type->data.klassIndex)->enumtype && !type->byref)
-            return Class::GetEnumBaseType(MetadataCache::GetTypeInfoFromTypeDefinitionIndex(type->data.klassIndex));
+        if (type->type == IL2CPP_TYPE_VALUETYPE && !type->byref && MetadataCache::GetTypeInfoFromType(type)->enumtype)
+            return Class::GetEnumBaseType(MetadataCache::GetTypeInfoFromType(type));
         if (IsGenericInstance(type))
         {
             Il2CppClass* definition = GenericClass::GetTypeDefinition(type->data.generic_class);
@@ -1052,9 +1061,7 @@ namespace vm
             return NULL;
         if (type->type == IL2CPP_TYPE_VAR || type->type == IL2CPP_TYPE_MVAR)
         {
-            const Il2CppGenericParameter* genericParameter = GetGenericParameter(type);
-            const Il2CppGenericContainer* container = MetadataCache::GetGenericContainerFromIndex(genericParameter->ownerIndex);
-            typeInfo = GenericContainer::GetDeclaringType(container);
+            typeInfo = MetadataCache::GetParameterDeclaringType(GetGenericParameterHandle(type));
         }
         else
         {
@@ -1075,11 +1082,11 @@ namespace vm
 
         if (Class::IsGeneric(klass))
         {
-            const Il2CppGenericContainer *container = MetadataCache::GetGenericContainerFromIndex(klass->genericContainerIndex);
-            res = Array::New(arrType, container->type_argc);
-            for (int32_t i = 0; i < container->type_argc; ++i)
+            uint32_t type_argc = MetadataCache::GetGenericContainerCount(klass->genericContainerHandle);
+            res = Array::New(arrType, type_argc);
+            for (uint32_t i = 0; i < type_argc; ++i)
             {
-                pklass = Class::FromGenericParameter(GenericContainer::GetGenericParameter(container, i));
+                pklass = Class::FromGenericParameter(GenericContainer::GetGenericParameter(klass->genericContainerHandle, i));
                 il2cpp_array_setref(res, i, Reflection::GetTypeObject(&pklass->byval_arg));
             }
         }
@@ -1140,7 +1147,7 @@ namespace vm
         if (type->byref)
             return false;
 
-        if (type->type == IL2CPP_TYPE_VALUETYPE && !MetadataCache::GetTypeInfoFromTypeDefinitionIndex(type->data.klassIndex)->enumtype)
+        if (type->type == IL2CPP_TYPE_VALUETYPE && !MetadataCache::GetTypeInfoFromType(type)->enumtype)
             return true;
 
         if (type->type == IL2CPP_TYPE_TYPEDBYREF)
@@ -1160,6 +1167,34 @@ namespace vm
         return GenericClass::IsValueType(type->data.generic_class);
     }
 
+    bool Type::HasVariableRuntimeSizeWhenFullyShared(const Il2CppType* type)
+    {
+        // Anything passed by ref is pointer sized
+        if (type->byref)
+            return false;
+
+        // Any generic parameter that is not constarined to be a reference type would be fully shared
+        if (type->type == IL2CPP_TYPE_VAR || type->type == IL2CPP_TYPE_MVAR)
+            return MetadataCache::IsReferenceTypeGenericParameter(MetadataCache::GetGenericParameterFromType(type)) != GenericParameterRestrictionReferenceType;
+
+        // If we're not a generic instance then we'll be a concrete type
+        if (!IsGenericInstance(type))
+            return false;
+
+        // If a reference type or pointer then we aren't variable sized
+        if (!GenericInstIsValuetype(type))
+            return false;
+
+        // Otherwise we're a generic value type - e.g. Struct<T> and we need to examine our generic parameters
+        for (uint32_t i = 0; i < type->data.generic_class->context.class_inst->type_argc; i++)
+        {
+            if (HasVariableRuntimeSizeWhenFullyShared(type->data.generic_class->context.class_inst->type_argv[i]))
+                return true;
+        }
+
+        return false;
+    }
+
     bool Type::IsEnum(const Il2CppType *type)
     {
         if (type->type != IL2CPP_TYPE_VALUETYPE)
@@ -1171,13 +1206,12 @@ namespace vm
 
     bool Type::IsValueType(const Il2CppType *type)
     {
-        Il2CppClass* klass = GetClass(type);
-        return klass->valuetype;
+        return type->valuetype;
     }
 
-    bool Type::IsEmptyType(const Il2CppType *type)
+    bool Type::IsPointerType(const Il2CppType *type)
     {
-        return IsGenericInstance(type) && type->data.generic_class->typeDefinitionIndex == kTypeIndexInvalid;
+        return type->type == IL2CPP_TYPE_PTR;
     }
 
     bool Type::IsSystemDBNull(const Il2CppType *type)
@@ -1201,52 +1235,102 @@ namespace vm
     Il2CppClass* Type::GetClass(const Il2CppType *type)
     {
         IL2CPP_ASSERT(type->type == IL2CPP_TYPE_CLASS || type->type == IL2CPP_TYPE_VALUETYPE);
-        return MetadataCache::GetTypeInfoFromTypeDefinitionIndex(type->data.klassIndex);
+        return MetadataCache::GetTypeInfoFromType(type);
     }
 
-    const Il2CppGenericParameter* Type::GetGenericParameter(const Il2CppType *type)
+    Il2CppMetadataGenericParameterHandle Type::GetGenericParameterHandle(const Il2CppType *type)
     {
-        IL2CPP_ASSERT(type->type == IL2CPP_TYPE_VAR || type->type == IL2CPP_TYPE_MVAR);
-        return MetadataCache::GetGenericParameterFromIndex(type->data.genericParameterIndex);
+        return MetadataCache::GetGenericParameterFromType(type);
+    }
+
+    Il2CppGenericParameterInfo Type::GetGenericParameterInfo(const Il2CppType *type)
+    {
+        return MetadataCache::GetGenericParameterInfo(MetadataCache::GetGenericParameterFromType(type));
     }
 
     const Il2CppType* Type::GetGenericTypeDefintion(const Il2CppType* type)
     {
-        IL2CPP_ASSERT(IsGenericInstance(type));
-        return Class::GetType(GenericClass::GetTypeDefinition(type->data.generic_class));
+        if (IsGenericInstance(type))
+            return type->data.generic_class->type;
+        return type;
+    }
+
+    static void InvokeDelegateConstructor(Il2CppDelegate* delegate, Il2CppObject* target, const MethodInfo* method)
+    {
+        typedef void (*DelegateCtor)(Il2CppDelegate* delegate, Il2CppObject* target, intptr_t method, MethodInfo* hiddenMethodInfo);
+        const MethodInfo* ctor = Class::GetMethodFromName(delegate->object.klass, ".ctor", 2);
+        void* ctorArgs[2] = {target, (void*)&method};
+        ctor->invoker_method(ctor->methodPointer, ctor, delegate, ctorArgs, NULL);
+    }
+
+/**
+* Type::ConstructClosedDelegate:
+* @delegate: pointer to an uninitialized delegate object
+* @target: target object
+* @addr: pointer to native code
+* @method: method
+*
+* Initialize a closed delegate and set a specific function, not the one
+* associated with method.  This is useful for pinvoke/marshaling cases
+* where addr is pointer to a marshaling helper, not the actual method
+*/
+    void Type::ConstructClosedDelegate(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr, const MethodInfo* method)
+    {
+#if IL2CPP_TINY
+        IL2CPP_ASSERT(0 && "Type::ConstructClosedDelegate should not be called with the Tiny profile.");
+#else
+        InvokeDelegateConstructor(delegate, target, method);
+        SetClosedDelegateInvokeMethod(delegate, target, addr);
+#endif
+    }
+
+    void Type::SetClosedDelegateInvokeMethod(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr)
+    {
+#if IL2CPP_TINY
+        IL2CPP_ASSERT(0 && "Type::SetClosedDelegateInvokeMethod should not be called with the Tiny profile.");
+#else
+        // For a closed delegate we set our invoke_impl to the method we want to invoke and the "this" we'll pass to the invoke_impl to the target
+        // This reduces the cost of a closed delegate call to normal virtual call
+        delegate->method_ptr = addr;
+        delegate->invoke_impl = addr;
+        delegate->invoke_impl_this = target;
+#endif
     }
 
 /**
 * Type::ConstructDelegate:
 * @delegate: pointer to an uninitialized delegate object
 * @target: target object
-* @addr: pointer to native code
 * @method: method
 *
-* Initialize a delegate and set a specific method, not the one
-* associated with addr. This is useful when sharing generic code.
-* In that case addr will most probably not be associated with the
-* correct instantiation of the method.
+* Construct a delegate to a method at runtime
 */
-    void Type::ConstructDelegate(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr, const MethodInfo* method)
+    void Type::ConstructDelegate(Il2CppDelegate* delegate, Il2CppObject* target, const MethodInfo* method)
     {
 #if IL2CPP_TINY
-        IL2CPP_ASSERT(0 && "Type::ConstructDelegatee should not be called with the Tiny profile.");
+        IL2CPP_ASSERT(0 && "Type::ConstructDelegate should not be called with the Tiny profile.");
 #else
         IL2CPP_ASSERT(delegate);
 
         if (method)
-            delegate->method = method;
+        {
+            bool isVirtualMethod = method->slot != kInvalidIl2CppMethodSlot && !(method->flags & METHOD_ATTRIBUTE_FINAL);
+            if (isVirtualMethod && target != NULL)
+                method = il2cpp::vm::Object::GetVirtualMethod(target, method);
+            else
+                delegate->method_is_virtual = isVirtualMethod;
+        }
 
-        delegate->method_ptr = addr;
-        if (target != NULL)
-            IL2CPP_OBJECT_SETREF(delegate, target, target);
+        InvokeDelegateConstructor(delegate, target, method);
 
-        delegate->invoke_impl = method->invoker_method; //TODO:figure out if this is needed at all
+        // If we are creating an open delegate on a value type instance method we do not want the adjuster thunk
+        // that the ctor will choose, so override it with the direct method
+        if (target == NULL && method != NULL && Class::IsValuetype(method->klass))
+            delegate->method_ptr = method->methodPointer;
 #endif
     }
 
-    Il2CppString* Type::AppendAssemblyNameIfNecessary(Il2CppString* typeName, const char* assemblyName)
+    Il2CppString* Type::AppendAssemblyNameIfNecessary(Il2CppString* typeName, const MethodInfo* callingMethod)
     {
         if (typeName != NULL)
         {
@@ -1260,7 +1344,7 @@ namespace vm
                 if (info.assembly_name().name.empty())
                 {
                     std::string assemblyQualifiedName;
-                    assemblyQualifiedName = name + ", " + assemblyName;
+                    assemblyQualifiedName = name + ", " + callingMethod->klass->image->name;
                     return vm::String::New(assemblyQualifiedName.c_str());
                 }
             }

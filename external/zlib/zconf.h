@@ -20,6 +20,7 @@
  */
 #define Z_PREFIX 1
 #ifdef Z_PREFIX     /* may be set to #if 1 by ./configure */
+#  define Z_PREFIX_SET
 
 /* all linked symbols and init macros */
 #  define _dist_code            il2cpp_z__dist_code
@@ -48,6 +49,8 @@
 #  define deflateCopy           il2cpp_z_deflateCopy
 #  define deflateEnd            il2cpp_z_deflateEnd
 #  define deflateGetDictionary  il2cpp_z_deflateGetDictionary
+#  define deflateInit           il2cpp_z_deflateInit
+#  define deflateInit2          il2cpp_z_deflateInit2
 #  define deflateInit2_         il2cpp_z_deflateInit2_
 #  define deflateInit_          il2cpp_z_deflateInit_
 #  define deflateParams         il2cpp_z_deflateParams
@@ -76,6 +79,7 @@
 #    define gzflush               il2cpp_z_gzflush
 #    define gzfread               il2cpp_z_gzfread
 #    define gzfwrite              il2cpp_z_gzfwrite
+#    define gzgetc                il2cpp_z_gzgetc
 #    define gzgetc_               il2cpp_z_gzgetc_
 #    define gzgets                il2cpp_z_gzgets
 #    define gzoffset              il2cpp_z_gzoffset
@@ -102,12 +106,15 @@
 #  define inflate               il2cpp_z_inflate
 #  define inflateBack           il2cpp_z_inflateBack
 #  define inflateBackEnd        il2cpp_z_inflateBackEnd
+#  define inflateBackInit       il2cpp_z_inflateBackInit
 #  define inflateBackInit_      il2cpp_z_inflateBackInit_
 #  define inflateCodesUsed      il2cpp_z_inflateCodesUsed
 #  define inflateCopy           il2cpp_z_inflateCopy
 #  define inflateEnd            il2cpp_z_inflateEnd
 #  define inflateGetDictionary  il2cpp_z_inflateGetDictionary
 #  define inflateGetHeader      il2cpp_z_inflateGetHeader
+#  define inflateInit           il2cpp_z_inflateInit
+#  define inflateInit2          il2cpp_z_inflateInit2
 #  define inflateInit2_         il2cpp_z_inflateInit2_
 #  define inflateInit_          il2cpp_z_inflateInit_
 #  define inflateMark           il2cpp_z_inflateMark

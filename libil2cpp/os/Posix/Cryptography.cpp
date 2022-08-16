@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if IL2CPP_TARGET_POSIX && !RUNTIME_TINY
 
 #include "os/Cryptography.h"
 #include <errno.h>
@@ -39,7 +39,7 @@ namespace os
     {
     }
 
-    bool Cryptography::FillBufferWithRandomBytes(void* provider, uint32_t length, unsigned char* data)
+    bool Cryptography::FillBufferWithRandomBytes(void* provider, intptr_t length, unsigned char* data)
     {
         int count = 0;
         ssize_t err;

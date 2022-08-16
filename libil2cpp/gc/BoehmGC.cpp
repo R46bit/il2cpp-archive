@@ -5,10 +5,14 @@
 #include <stdint.h>
 #include "gc_wrapper.h"
 #include "GarbageCollector.h"
+#include "WriteBarrier.h"
 #include "WriteBarrierValidation.h"
+#include "vm/Array.h"
+#include "vm/Domain.h"
 #include "vm/Profiler.h"
 #include "utils/Il2CppHashMap.h"
 #include "utils/HashUtils.h"
+#include "il2cpp-object-internals.h"
 
 static bool s_GCInitialized = false;
 
@@ -16,19 +20,78 @@ static bool s_GCInitialized = false;
 static bool s_PendingGC = false;
 #endif
 
+static void on_gc_event(GC_EventType eventType);
 #if IL2CPP_ENABLE_PROFILER
 using il2cpp::vm::Profiler;
-static void on_gc_event(GC_EventType eventType);
 static void on_heap_resize(GC_word newSize);
 #endif
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 static GC_push_other_roots_proc default_push_other_roots;
 typedef Il2CppHashMap<char*, char*, il2cpp::utils::PassThroughHash<char*> > RootMap;
 static RootMap s_Roots;
 
 static void push_other_roots(void);
-#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
+
+typedef struct ephemeron_node ephemeron_node;
+static ephemeron_node* ephemeron_list;
+
+static void
+clear_ephemerons(void);
+
+static void
+push_ephemerons(void);
+
+#if !IL2CPP_ENABLE_WRITE_BARRIER_VALIDATION
+#define ELEMENT_CHUNK_SIZE 256
+#define VECTOR_PROC_INDEX 6
+
+#define BYTES_PER_WORD (sizeof(GC_word))
+
+#include <gc_vector.h>
+
+GC_ms_entry* GC_gcj_vector_proc(GC_word* addr, GC_ms_entry* mark_stack_ptr,
+    GC_ms_entry* mark_stack_limit, GC_word env)
+{
+    Il2CppArraySize* a = NULL;
+    if (env)
+    {
+        IL2CPP_ASSERT(env == 1);
+
+        a = (Il2CppArraySize*)GC_base(addr);
+    }
+    else
+    {
+        IL2CPP_ASSERT(addr == GC_base(addr));
+
+        a = (Il2CppArraySize*)addr;
+    }
+
+    if (!a->max_length)
+        return mark_stack_ptr;
+
+    il2cpp_array_size_t length = a->max_length;
+    Il2CppClass* array_type = a->vtable->klass;
+    Il2CppClass* element_type = array_type->element_class;
+    GC_descr element_desc = (GC_descr)element_type->gc_desc;
+
+    IL2CPP_ASSERT((element_desc & GC_DS_TAGS) == GC_DS_BITMAP);
+    IL2CPP_ASSERT(element_type->byval_arg.valuetype);
+
+    int words_per_element = array_type->element_size / BYTES_PER_WORD;
+    GC_word* actual_start = (GC_word*)a->vector;
+
+    /* start at first element or resume from last iteration */
+    GC_word* start = env ? addr : actual_start;
+    /* end at last element or max chunk size */
+    GC_word* actual_end = actual_start + length * words_per_element;
+
+    return GC_gcj_vector_mark_proc(mark_stack_ptr, mark_stack_limit, element_desc, start, actual_end, words_per_element);
+}
+
+#endif // !IL2CPP_ENABLE_WRITE_BARRIER_VALIDATION
+
+#endif // !RUNTIME_TINY
 
 void
 il2cpp::gc::GarbageCollector::Initialize()
@@ -56,20 +119,21 @@ il2cpp::gc::GarbageCollector::Initialize()
 #endif
 #endif
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
     default_push_other_roots = GC_get_push_other_roots();
     GC_set_push_other_roots(push_other_roots);
-#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
+    GC_set_mark_stack_empty(push_ephemerons);
+#endif // !RUNTIME_TINY
 
-#if IL2CPP_ENABLE_PROFILER
     GC_set_on_collection_event(&on_gc_event);
+#if IL2CPP_ENABLE_PROFILER
     GC_set_on_heap_resize(&on_heap_resize);
 #endif
 
     GC_INIT();
 #if defined(GC_THREADS)
     GC_set_finalize_on_demand(1);
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
     GC_set_finalizer_notifier(&il2cpp::gc::GarbageCollector::NotifyFinalizers);
 #endif
     // We need to call this if we want to manually register threads, i.e. GC_register_my_thread
@@ -80,6 +144,10 @@ il2cpp::gc::GarbageCollector::Initialize()
 #ifdef GC_GCJ_SUPPORT
     GC_init_gcj_malloc(0, NULL);
 #endif
+
+#if !RUNTIME_TINY && !IL2CPP_ENABLE_WRITE_BARRIER_VALIDATION
+    GC_init_gcj_vector(VECTOR_PROC_INDEX, (void*)GC_gcj_vector_proc);
+#endif
     s_GCInitialized = true;
 }
 
@@ -89,6 +157,11 @@ void il2cpp::gc::GarbageCollector::UninitializeGC()
     il2cpp::gc::WriteBarrierValidation::Run();
 #endif
     GC_deinit();
+#if IL2CPP_ENABLE_RELOAD
+    s_GCInitialized = false;
+    default_push_other_roots = NULL;
+    s_Roots.clear();
+#endif
 }
 
 int32_t
@@ -132,6 +205,12 @@ il2cpp::gc::GarbageCollector::CollectALittle()
 #endif
 }
 
+void
+il2cpp::gc::GarbageCollector::StartIncrementalCollection()
+{
+    GC_start_incremental_collection();
+}
+
 #if IL2CPP_ENABLE_WRITE_BARRIERS
 void
 il2cpp::gc::GarbageCollector::SetWriteBarrier(void **ptr)
@@ -169,6 +248,30 @@ bool
 il2cpp::gc::GarbageCollector::IsDisabled()
 {
     return GC_is_disabled();
+}
+
+void
+il2cpp::gc::GarbageCollector::SetMode(Il2CppGCMode mode)
+{
+    switch (mode)
+    {
+        case IL2CPP_GC_MODE_ENABLED:
+            if (GC_is_disabled())
+                GC_enable();
+            GC_set_disable_automatic_collection(false);
+            break;
+
+        case IL2CPP_GC_MODE_DISABLED:
+            if (!GC_is_disabled())
+                GC_disable();
+            break;
+
+        case IL2CPP_GC_MODE_MANUAL:
+            if (GC_is_disabled())
+                GC_enable();
+            GC_set_disable_automatic_collection(true);
+            break;
+    }
 }
 
 bool
@@ -265,7 +368,15 @@ il2cpp::gc::GarbageCollector::MakeDescriptorForObject(size_t *bitmap, int numbit
     if (numbits >= 30)
         return GC_NO_DESCRIPTOR;
     else
-        return (void*)GC_make_descriptor((GC_bitmap)bitmap, numbits);
+    {
+        GC_descr desc = GC_make_descriptor((GC_bitmap)bitmap, numbits);
+        // we should always have a GC_DS_BITMAP descriptor, as we:
+        // 1) Always want a precise marker.
+        // 2) Can never be GC_DS_LENGTH since we always have an object header
+        //    at the beginning of the allocation.
+        IL2CPP_ASSERT((desc & GC_DS_TAGS) == GC_DS_BITMAP || (desc & GC_DS_TAGS) == (GC_descr)GC_NO_DESCRIPTOR);
+        return (void*)desc;
+    }
 #else
     return 0;
 #endif
@@ -291,11 +402,21 @@ void il2cpp::gc::GarbageCollector::StartWorld()
     GC_start_world_external();
 }
 
-#if IL2CPP_TINY_WITHOUT_DEBUGGER
+#if RUNTIME_TINY
 void*
 il2cpp::gc::GarbageCollector::Allocate(size_t size)
 {
     return GC_MALLOC(size);
+}
+
+void*
+il2cpp::gc::GarbageCollector::AllocateObject(size_t size, void* type)
+{
+#if IL2CPP_ENABLE_WRITE_BARRIER_VALIDATION
+    return GC_gcj_malloc(size, type);
+#else
+    return GC_MALLOC(size);
+#endif
 }
 
 #endif
@@ -323,7 +444,7 @@ il2cpp::gc::GarbageCollector::FreeFixed(void* addr)
     GC_FREE(addr);
 }
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 int32_t
 il2cpp::gc::GarbageCollector::InvokeFinalizers()
 {
@@ -360,12 +481,20 @@ il2cpp::gc::GarbageCollector::IsIncremental()
     return GC_is_incremental_mode();
 }
 
-#if IL2CPP_ENABLE_PROFILER
-
 void on_gc_event(GC_EventType eventType)
 {
+#if !RUNTIME_TINY
+    if (eventType == GC_EVENT_RECLAIM_START)
+    {
+        clear_ephemerons();
+    }
+#endif
+#if IL2CPP_ENABLE_PROFILER
     Profiler::GCEvent((Il2CppGCEvent)eventType);
+#endif
 }
+
+#if IL2CPP_ENABLE_PROFILER
 
 void on_heap_resize(GC_word newSize)
 {
@@ -395,7 +524,7 @@ typedef struct
     char *end;
 } RootData;
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 
 static void*
 register_root(void* arg)
@@ -431,10 +560,137 @@ push_other_roots(void)
 {
     for (RootMap::iterator iter = s_Roots.begin(); iter != s_Roots.end(); ++iter)
         GC_push_all(iter->first, iter->second);
+    GC_push_all(&ephemeron_list, &ephemeron_list + 1);
     if (default_push_other_roots)
         default_push_other_roots();
 }
 
-#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
+struct ephemeron_node
+{
+    ephemeron_node* next;
+    void* ephemeron_array_weak_link;
+};
+
+
+static void*
+ephemeron_array_add(void* arg)
+{
+    ephemeron_node* item = (ephemeron_node*)arg;
+    ephemeron_node* current = ephemeron_list;
+    il2cpp::gc::WriteBarrier::GenericStore(&item->next, current);
+    ephemeron_list = item;
+
+    return NULL;
+}
+
+struct Ephemeron
+{
+    Il2CppObject* key;
+    Il2CppObject* value;
+};
+
+static void
+clear_ephemerons(void)
+{
+    ephemeron_node* prev_node = NULL;
+    ephemeron_node* current_node = NULL;
+
+    /* iterate all registered Ephemeron[] */
+    for (current_node = ephemeron_list; current_node; current_node = current_node->next)
+    {
+        Ephemeron* current_ephemeron, * array_end;
+        Il2CppObject* tombstone = NULL;
+        /* reveal weak link value*/
+        Il2CppArray* array = (Il2CppArray*)GC_REVEAL_POINTER(current_node->ephemeron_array_weak_link);
+
+        /* remove unmarked (non-reachable) arrays from the list */
+        if (!GC_is_marked(array))
+        {
+            if (prev_node == NULL)
+                il2cpp::gc::WriteBarrier::GenericStore(&ephemeron_list, current_node->next);
+            else
+                il2cpp::gc::WriteBarrier::GenericStore(&prev_node->next, current_node->next);
+            continue;
+        }
+
+        prev_node = current_node;
+
+        current_ephemeron = il2cpp_array_addr(array, Ephemeron, 0);
+        array_end = current_ephemeron + array->max_length;
+        tombstone = il2cpp::vm::Domain::GetCurrent()->ephemeron_tombstone;
+
+        for (; current_ephemeron < array_end; ++current_ephemeron)
+        {
+            /* skip a null or tombstone (empty) key */
+            if (!current_ephemeron->key || current_ephemeron->key == tombstone)
+                continue;
+
+            /* If the key is not marked, then set it to the tombstone and the value to NULL. */
+            if (!GC_is_marked(current_ephemeron->key))
+            {
+                il2cpp::gc::WriteBarrier::GenericStore(&current_ephemeron->key, tombstone);
+                current_ephemeron->value = NULL;
+            }
+        }
+    }
+}
+
+static void
+push_ephemerons(void)
+{
+    ephemeron_node* prev_node = NULL;
+    ephemeron_node* current_node = NULL;
+
+    /* iterate all registered Ephemeron[] */
+    for (current_node = ephemeron_list; current_node; current_node = current_node->next)
+    {
+        Ephemeron* current_ephemeron, * array_end;
+        Il2CppObject* tombstone = NULL;
+        /* reveal weak link value*/
+        Il2CppArray* array = (Il2CppArray*)GC_REVEAL_POINTER(current_node->ephemeron_array_weak_link);
+
+        /* unreferenced array */
+        if (!GC_is_marked(array))
+        {
+            continue;
+        }
+
+        prev_node = current_node;
+
+        current_ephemeron = il2cpp_array_addr(array, Ephemeron, 0);
+        array_end = current_ephemeron + array->max_length;
+        tombstone = il2cpp::vm::Domain::GetCurrent()->ephemeron_tombstone;
+
+        for (; current_ephemeron < array_end; ++current_ephemeron)
+        {
+            /* skip a null or tombstone (empty) key */
+            if (!current_ephemeron->key || current_ephemeron->key == tombstone)
+                continue;
+
+            /* If the key is not marked, then don't mark value. */
+            if (!GC_is_marked(current_ephemeron->key))
+                continue;
+
+            if (current_ephemeron->value && !GC_is_marked(current_ephemeron->value))
+            {
+                /* the key is marked, so mark the value if needed */
+                GC_push_all(&current_ephemeron->value, &current_ephemeron->value + 1);
+            }
+        }
+    }
+}
+
+bool il2cpp::gc::GarbageCollector::EphemeronArrayAdd(Il2CppObject* obj)
+{
+    ephemeron_node* item = (ephemeron_node*)GC_MALLOC(sizeof(ephemeron_node));
+    memset(item, 0, sizeof(ephemeron_node));
+
+    AddWeakLink(&item->ephemeron_array_weak_link, obj, false);
+
+    GC_call_with_alloc_lock(ephemeron_array_add, item);
+    return true;
+}
+
+#endif // !RUNTIME_TINY
 
 #endif

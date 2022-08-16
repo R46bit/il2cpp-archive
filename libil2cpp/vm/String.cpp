@@ -2,6 +2,7 @@
 #include "gc/Allocator.h"
 #include "gc/GarbageCollector.h"
 #include "gc/GCHandle.h"
+#include "os/Atomic.h"
 #include "os/Mutex.h"
 #include "vm/Exception.h"
 #include "vm/String.h"
@@ -13,6 +14,9 @@
 #include <memory.h>
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
+
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
 
 namespace il2cpp
 {
@@ -83,14 +87,14 @@ namespace vm
         s = NewSize(len);
         IL2CPP_ASSERT(s != NULL);
 
-        memcpy(utils::StringUtils::GetChars(s), text, len * 2);
+        memcpy(utils::StringUtils::GetChars(s), text, (size_t)len * 2);
 
         return s;
     }
 
     Il2CppString* String::NewUtf16(const utils::StringView<Il2CppChar>& text)
     {
-        assert(text.Length() < static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+        IL2CPP_ASSERT(text.Length() < static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
         return NewUtf16(text.Str(), static_cast<int32_t>(text.Length()));
     }
 
@@ -101,7 +105,7 @@ namespace vm
 
         Il2CppString *s;
         IL2CPP_ASSERT(len >= 0);
-        size_t size = (sizeof(Il2CppString) + ((len + 1) * 2));
+        size_t size = (sizeof(Il2CppString) + (((size_t)len + 1) * 2));
 
         /* overflow ? can't fit it, can't allocate it! */
         if (static_cast<uint32_t>(len) > size)
@@ -149,16 +153,17 @@ namespace vm
 
     typedef il2cpp::gc::AppendOnlyGCHashMap<InternedString, Il2CppString*, InternedStringHash, InternedStringCompare> InternedStringMap;
 
-    static os::FastMutex s_InternedStringMapMutex;
     static InternedStringMap* s_InternedStringMap;
 
     Il2CppString* String::Intern(Il2CppString* str)
     {
-        os::FastAutoLock lockMap(&s_InternedStringMapMutex);
-
-        // allocate this are runtime since it uses GC allocator to keep managed strings alive and needs GC initialized
+        // allocate this at runtime since it uses GC allocator to keep managed strings alive and needs GC initialized
         if (s_InternedStringMap == NULL)
-            s_InternedStringMap = new InternedStringMap();
+        {
+            InternedStringMap* newMap = new InternedStringMap();
+            if (os::Atomic::CompareExchangePointer<InternedStringMap>(&s_InternedStringMap, newMap, NULL) != NULL)
+                delete newMap;
+        }
 
         InternedString internedString = { str->length, str->chars };
         Il2CppString* value = NULL;
@@ -166,15 +171,11 @@ namespace vm
             return value;
 
         internedString.chars = utils::StringUtils::GetChars(str);
-        s_InternedStringMap->Add(internedString, str);
-
-        return str;
+        return s_InternedStringMap->GetOrAdd(internedString, str);
     }
 
     Il2CppString* String::IsInterned(Il2CppString* str)
     {
-        os::FastAutoLock lockMap(&s_InternedStringMapMutex);
-
         // if this is NULL, it means we have no interned strings
         if (s_InternedStringMap == NULL)
             return NULL;

@@ -8,7 +8,6 @@
 #include "vm/Profiler.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
-#include <assert.h>
 #include <memory>
 
 namespace il2cpp
@@ -102,6 +101,7 @@ namespace vm
         IL2CPP_ASSERT(klass->rank);
         IL2CPP_ASSERT(klass->initialized);
         IL2CPP_ASSERT(klass->element_class->initialized);
+        IL2CPP_ASSERT(klass->byval_arg.type == IL2CPP_TYPE_SZARRAY);
 
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Array::NewSpecific, "Not checking for overflow");
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Array::NewSpecific, "Handle allocations with a GC descriptor");
@@ -131,6 +131,13 @@ namespace vm
             memset((char*)o + sizeof(Il2CppObject), 0, byte_len - sizeof(Il2CppObject));
 #endif
         }
+#if !RUNTIME_TINY
+        else if (klass->element_class->byval_arg.valuetype &&
+                 ((GC_descr)klass->element_class->gc_desc & GC_DS_TAGS) == GC_DS_BITMAP)
+        {
+            o = (Il2CppObject*)GC_gcj_vector_malloc(byte_len, klass);
+        }
+#endif
 #if IL2CPP_HAS_GC_DESCRIPTORS
         else if (klass->gc_desc != GC_NO_DESCRIPTOR)
         {
@@ -174,6 +181,10 @@ namespace vm
         /* A single dimensional array with a 0 lower bound is the same as an szarray */
         if (array_class->rank == 1 && ((array_class->byval_arg.type == IL2CPP_TYPE_SZARRAY) || (lower_bounds && lower_bounds[0] == 0)))
         {
+            /* A single dimensional array with a 0 lower bound should be an szarray */
+            /* but the caller asked for an IL2CPP_TYPE_ARRAY, which insn't correct */
+            IL2CPP_ASSERT(array_class->byval_arg.type == IL2CPP_TYPE_SZARRAY);
+
             len = lengths[0];
             if (len > IL2CPP_ARRAY_MAX_INDEX) //MONO_ARRAY_MAX_INDEX
                 RaiseOverflowException();
@@ -181,6 +192,8 @@ namespace vm
         }
         else
         {
+            IL2CPP_ASSERT(array_class->byval_arg.type == IL2CPP_TYPE_ARRAY);
+
             bounds_size = sizeof(Il2CppArrayBounds) * array_class->rank;
 
             for (i = 0; i < array_class->rank; ++i)
@@ -260,12 +273,6 @@ namespace vm
     }
 } /* namespace vm */
 } /* namespace il2cpp */
-
-LIBIL2CPP_CODEGEN_API char*
-il2cpp_array_addr_with_size(Il2CppArray *array, int32_t size, uintptr_t idx)
-{
-    return ((char*)array) + kIl2CppSizeOfArray + size * idx;
-}
 
 LIBIL2CPP_CODEGEN_API int32_t
 il2cpp_array_element_size(Il2CppClass *ac)

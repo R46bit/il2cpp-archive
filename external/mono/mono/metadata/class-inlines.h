@@ -9,6 +9,8 @@
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/tabledefs.h>
 
+#ifndef RUNTIME_IL2CPP
+
 static inline gboolean
 mono_class_is_def (MonoClass *klass)
 {
@@ -98,5 +100,7 @@ m_class_is_initialized (MonoClass* klass)
 {
     return klass->inited;
 }
+
+#endif // !RUNTIME_IL2CPP
 
 #endif

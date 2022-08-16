@@ -1,8 +1,9 @@
 #include "il2cpp-config.h"
 
-#if IL2CPP_TARGET_POSIX || IL2CPP_TARGET_SWITCH && !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if IL2CPP_TARGET_POSIX || IL2CPP_TARGET_SWITCH && !RUNTIME_TINY
 
 #include "os/MarshalAlloc.h"
+#include <stdlib.h>
 
 namespace il2cpp
 {

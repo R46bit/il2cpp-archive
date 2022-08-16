@@ -1,6 +1,5 @@
 #pragma once
 
-#include <assert.h>
 #include <stddef.h> // ptrdiff_t
 
 #if defined(__aarch64__) && defined(__arm__)
@@ -16,6 +15,27 @@
 #else
 #define IL2CPP_TARGET_ARM64 0
 #define IL2CPP_TARGET_ARMV7 0
+#endif
+
+#if defined(__arm64e__) && defined(__PTRAUTH_INTRINSICS__)
+#define IL2CPP_TARGET_ARM64E 1
+#else
+#define IL2CPP_TARGET_ARM64E 0
+#endif
+
+#if defined(__x86_64__) || defined(_M_X64)
+#define IL2CPP_TARGET_X64 1
+#define IL2CPP_TARGET_X86 0
+#elif defined(__i386__) || defined(_M_IX86)
+#define IL2CPP_TARGET_X64 0
+#define IL2CPP_TARGET_X86 1
+#else
+#define IL2CPP_TARGET_X64 0
+#define IL2CPP_TARGET_X86 0
+#endif
+
+#if defined(EMBEDDED_LINUX)
+#define IL2CPP_TARGET_EMBEDDED_LINUX 1
 #endif
 
 // Large executables on ARM64 and ARMv7 can cause linker errors.
@@ -35,6 +55,15 @@
 // in some cases, because the stack trace generation code must use
 // fuzzy heuristics to detemine if a given instrion pointer is in a
 // managed method.
+
+#if IL2CPP_TARGET_EMBEDDED_LINUX && IL2CPP_TARGET_ARMV7
+// currently on EmbeddedLinux stack unwinding doesn't work properly when using custom code sections on ARMv7
+// as a result processing exceptions from managed code and resolving managed stack traces doesn't work
+#ifndef IL2CPP_LARGE_EXECUTABLE_ARM_WORKAROUND
+#define IL2CPP_LARGE_EXECUTABLE_ARM_WORKAROUND 1
+#endif
+#endif
+
 #if IL2CPP_TARGET_ARM64 || IL2CPP_TARGET_ARMV7
 #ifndef IL2CPP_LARGE_EXECUTABLE_ARM_WORKAROUND
 #define IL2CPP_LARGE_EXECUTABLE_ARM_WORKAROUND 0
@@ -52,10 +81,8 @@
 #define IL2CPP_TARGET_PS4 1
 #define _UNICODE 1
 #define UNICODE 1
-#elif defined(SN_TARGET_PROSPERO)
-#define IL2CPP_TARGET_PS5 1
-#define _UNICODE 1
-#define UNICODE 1
+#define IL2CPP_PLATFORM_SUPPORTS_CUSTOM_SECTIONS 1
+#define IL2CPP_METHOD_ATTR __attribute__((section(IL2CPP_BINARY_SECTION_NAME)))
 #elif defined(_MSC_VER)
 #define IL2CPP_TARGET_WINDOWS 1
 
@@ -80,6 +107,7 @@
 #define IL2CPP_TARGET_WINDOWS_GAMES 1
 #define IL2CPP_PLATFORM_SUPPORTS_SYSTEM_CERTIFICATES 1
 #define IL2CPP_ENABLE_PLATFORM_THREAD_AFFINTY 1
+#elif (IL2CPP_CUSTOM_PLATFORM)
 #else
 #define IL2CPP_TARGET_WINDOWS_DESKTOP 1
 #define IL2CPP_PLATFORM_SUPPORTS_SYSTEM_CERTIFICATES 1
@@ -162,8 +190,15 @@
 #elif defined(NN_BUILD_TARGET_PLATFORM_NX)
 #define IL2CPP_TARGET_SWITCH 1
 #include "il2cpp-config-switch.h"
+#elif IL2CPP_TARGET_CUSTOM
+// defined handled externally
 #else
 #error please define your target platform
+#endif
+
+#if IL2CPP_TARGET_PS5
+#define IL2CPP_PLATFORM_SUPPORTS_CUSTOM_SECTIONS 1
+#define IL2CPP_METHOD_ATTR __attribute__((section(IL2CPP_BINARY_SECTION_NAME)))
 #endif
 
 #ifndef IL2CPP_TARGET_WINDOWS
@@ -218,10 +253,6 @@
 #define IL2CPP_TARGET_PS4 0
 #endif
 
-#ifndef IL2CPP_TARGET_PS5
-#define IL2CPP_TARGET_PS5 0
-#endif
-
 #ifndef IL2CPP_TARGET_PSP2
 #define IL2CPP_TARGET_PSP2 0
 #endif
@@ -234,9 +265,15 @@
 #define IL2CPP_TARGET_LUMIN 0
 #endif
 
-#define IL2CPP_TARGET_POSIX (IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_JAVASCRIPT || IL2CPP_TARGET_LINUX || IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5 || IL2CPP_TARGET_PSP2 || IL2CPP_TARGET_LUMIN)
+#ifndef IL2CPP_TARGET_EMBEDDED_LINUX
+#define IL2CPP_TARGET_EMBEDDED_LINUX 0
+#endif
 
-#define IL2CPP_TINY_WITHOUT_DEBUGGER (IL2CPP_TINY && !IL2CPP_MONO_DEBUGGER)
+#ifndef IL2CPP_TARGET_POSIX
+#define IL2CPP_TARGET_POSIX (IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_JAVASCRIPT || IL2CPP_TARGET_LINUX || IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PSP2 || IL2CPP_TARGET_LUMIN)
+#endif
+
+#define RUNTIME_TINY (IL2CPP_TINY && !IL2CPP_MONO_DEBUGGER)
 #define IL2CPP_TINY_DEBUGGER (IL2CPP_TINY && IL2CPP_MONO_DEBUGGER)
 
 #define IL2CPP_IL2CPP_TINY_SUPPORT_THREADS IL2CPP_TINY && IL2CPP_TINY_DEBUGGER
@@ -270,17 +307,6 @@
 #define IL2CPP_DEBUG 0
 #endif
 
-#if !IL2CPP_DEBUG
-#define IL2CPP_ASSERT(expr) (void(0))
-#elif IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_XBOXONE || IL2CPP_TARGET_WINRT
-#include <crtdbg.h>
-#define IL2CPP_ASSERT(expr) \
-    _ASSERTE(expr)
-#else
-#define IL2CPP_ASSERT(expr) \
-    assert(expr)
-#endif
-
 #ifndef IL2CPP_PLATFORM_SUPPORTS_CPU_INFO
 #define IL2CPP_PLATFORM_SUPPORTS_CPU_INFO 0
 #endif
@@ -294,7 +320,7 @@
 #endif
 
 #ifndef IL2CPP_PLATFORM_SUPPORTS_BACKTRACE_CALL
-#define IL2CPP_PLATFORM_SUPPORTS_BACKTRACE_CALL !IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_ANDROID && !IL2CPP_TARGET_LUMIN
+#define IL2CPP_PLATFORM_SUPPORTS_BACKTRACE_CALL !IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_ANDROID && !IL2CPP_TARGET_LUMIN && !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_PS5
 #endif //IL2CPP_PLATFORM_SUPPORTS_BACKTRACE_CALL
 
 #ifndef IL2CPP_SUPPORT_SOCKETS_POSIX_API
@@ -308,16 +334,14 @@
 #define IL2CPP_THREADS_WIN32 (!IL2CPP_THREADS_STD && IL2CPP_TARGET_WINDOWS)
 #define IL2CPP_THREADS_N3DS (!IL2CPP_THREADS_STD && IL2CPP_TARGET_N3DS)
 #define IL2CPP_THREADS_PS4 (!IL2CPP_THREADS_STD && IL2CPP_TARGET_PS4)
-#define IL2CPP_THREADS_PS5 (!IL2CPP_THREADS_STD && IL2CPP_TARGET_PS5)
 #define IL2CPP_THREADS_PSP2 (!IL2CPP_THREADS_STD && IL2CPP_TARGET_PSP2)
 #define IL2CPP_THREADS_SWITCH (!IL2CPP_THREADS_STD && IL2CPP_TARGET_SWITCH)
 
 #define IL2CPP_THREAD_HAS_CPU_SET IL2CPP_TARGET_POSIX && !IL2CPP_THREADS_PS4
 
-// Not supported on RUNTIME_MONO because we don't really care about it
 // Not supported on TINY because it doesn't support synchronization context
 // Not supported on no runtime because it needs to call back into the runtime!
-#define IL2CPP_HAS_OS_SYNCHRONIZATION_CONTEXT (IL2CPP_TARGET_WINDOWS) && !RUNTIME_MONO && !IL2CPP_TINY && !RUNTIME_NONE && !IL2CPP_TARGET_WINDOWS_GAMES
+#define IL2CPP_HAS_OS_SYNCHRONIZATION_CONTEXT (IL2CPP_TARGET_WINDOWS) && !IL2CPP_TINY && !RUNTIME_NONE && !IL2CPP_TARGET_WINDOWS_GAMES
 
 /* Trigger assert if 'ptr' is not aligned to 'alignment'. */
 #define ASSERT_ALIGNMENT(ptr, alignment) \
@@ -351,4 +375,30 @@
 
 #ifndef IL2CPP_USE_GENERIC_CRASH_HELPERS
 #define IL2CPP_USE_GENERIC_CRASH_HELPERS (!IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_POSIX)
+#endif
+
+#ifndef IL2CPP_SUPPORTS_CONSOLE_EXTENSION
+#define IL2CPP_SUPPORTS_CONSOLE_EXTENSION IL2CPP_TARGET_ANDROID
+#endif
+
+#define IL2CPP_COMPILER_MSVC (IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_XBOXONE)
+
+#if IL2CPP_COMPILER_MSVC
+#ifndef STDCALL
+#define STDCALL __stdcall
+#endif
+#ifndef CDECL
+#define CDECL __cdecl
+#endif
+#ifndef FASTCALL
+#define FASTCALL __fastcall
+#endif
+#ifndef THISCALL
+#define THISCALL __thiscall
+#endif
+#else
+#define STDCALL
+#define CDECL
+#define FASTCALL
+#define THISCALL
 #endif

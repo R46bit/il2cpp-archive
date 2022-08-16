@@ -1,6 +1,6 @@
 #include "os/c-api/il2cpp-config-platforms.h"
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 
 #include "os/NativeMethods.h"
 #include "os/c-api/Process-c-api.h"
@@ -14,7 +14,7 @@ extern "C"
 
     int32_t UnityPalNativeGetExitCodeProcess(UnityPalProcessHandle* handle, int32_t* exitCode)
     {
-        return il2cpp::os::NativeMethods::GetExitCodeProcess(handle, exitCode);
+        return il2cpp::os::NativeMethods::GetExitCodeProcess(handle, exitCode).Get();
     }
 
     int32_t UnityPalNativeGetCurrentProcessId()
@@ -24,7 +24,7 @@ extern "C"
 
     UnityPalProcessHandle* UnityPalNativeGetCurrentProcess()
     {
-        return il2cpp::os::NativeMethods::GetCurrentProcess();
+        return il2cpp::os::NativeMethods::GetCurrentProcess().Get();
     }
 }
 

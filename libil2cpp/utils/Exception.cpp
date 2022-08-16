@@ -10,7 +10,7 @@ namespace utils
 {
     std::string Exception::FormatException(const Il2CppException* ex)
     {
-#if IL2CPP_TINY_WITHOUT_DEBUGGER
+#if RUNTIME_TINY
         IL2CPP_ASSERT(0 && "Exceptions are not supported with the Tiny runtime");
         return std::string();
 #else
@@ -26,7 +26,7 @@ namespace utils
     std::string Exception::FormatInvalidCastException(const Il2CppClass* fromType, const Il2CppClass* toType)
     {
         std::string message;
-#if IL2CPP_TINY_WITHOUT_DEBUGGER
+#if RUNTIME_TINY
         IL2CPP_ASSERT(0 && "Exceptions are not supported with the Tiny runtime");
 #else
         if (fromType != NULL && toType != NULL)
@@ -44,10 +44,22 @@ namespace utils
 
     std::string Exception::FormatStackTrace(const Il2CppException* ex)
     {
-        if (ex->stack_trace)
-            return il2cpp::utils::StringUtils::Utf16ToUtf8(il2cpp::utils::StringUtils::GetChars(ex->stack_trace));
+        // Exception.RestoreExceptionDispatchInfo() will clear stack_trace, so we need to ensure that we read it only once
+        Il2CppString* stack_trace = ex->stack_trace;
+
+        if (stack_trace)
+            return il2cpp::utils::StringUtils::Utf16ToUtf8(il2cpp::utils::StringUtils::GetChars(stack_trace));
 
         return "";
+    }
+
+    std::string Exception::FormatBaselibErrorState(const Baselib_ErrorState& errorState)
+    {
+        const auto len = Baselib_ErrorState_Explain(&errorState, nullptr, 0, Baselib_ErrorState_ExplainVerbosity_ErrorType_SourceLocation_Explanation);
+        std::string buffer(len, ' ');
+        // std::string::data() is const only until C++17
+        Baselib_ErrorState_Explain(&errorState, &buffer[0], len, Baselib_ErrorState_ExplainVerbosity_ErrorType_SourceLocation_Explanation);
+        return buffer;
     }
 } // utils
 } // il2cpp

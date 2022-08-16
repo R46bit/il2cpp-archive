@@ -10,6 +10,8 @@
 #define ARCHITECTURE_IS_X86 1
 #elif defined(__x86_64__)
 #define ARCHITECTURE_IS_AMD64 1
+#elif defined(__arm64__)
+#define ARCHITECTURE_IS_ARM64 1
 #else
 #error Unknown architecture when building!
 #endif

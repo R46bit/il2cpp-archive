@@ -2,7 +2,6 @@
 #include "il2cpp-object-internals.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-tabledefs.h"
-#include "il2cpp-vm-support.h"
 #include "gc/GCHandle.h"
 #include "metadata/GenericMetadata.h"
 #include "vm/Exception.h"
@@ -18,9 +17,13 @@
 #include "vm/Monitor.h"
 #include "os/Mutex.h"
 #include "os/WindowsRuntime.h"
+#include "utils/Il2CppError.h"
 #include "utils/Il2CppHashMap.h"
 #include "utils/HashUtils.h"
 #include "utils/StringUtils.h"
+
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
 
 const Il2CppGuid Il2CppIUnknown::IID = { 0x00000000, 0x0000, 0x0000, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 };
 const Il2CppGuid Il2CppISequentialStream::IID = { 0x0c733a30, 0x2a1c, 0x11ce, 0xad, 0xe5, 0x00, 0xaa, 0x00, 0x44, 0x77, 0x3d };
@@ -42,14 +45,16 @@ namespace vm
 {
     typedef Il2CppHashMap<Il2CppIUnknown*, /* Weak GC Handle */ uint32_t, il2cpp::utils::PointerHash<Il2CppIUnknown> > RCWCache;
 
-    static os::FastMutex s_RCWCacheMutex;
+    static baselib::ReentrantLock s_RCWCacheMutex;
     static RCWCache s_RCWCache;
 
     void RCW::Register(Il2CppComObject* rcw)
     {
         os::FastAutoLock lock(&s_RCWCacheMutex);
         rcw->refCount = 1;
-        const bool inserted = s_RCWCache.insert(std::make_pair(rcw->identity, gc::GCHandle::NewWeakref(rcw, false))).second;
+        auto weakRef = gc::GCHandle::NewWeakref(rcw, false);
+        vm::Exception::RaiseIfError(weakRef.GetError());
+        const bool inserted = s_RCWCache.insert(std::make_pair(rcw->identity, weakRef.Get())).second;
         Assert(inserted);
     }
 
@@ -57,7 +62,7 @@ namespace vm
     {
         Il2CppIUnknown* identity;
         il2cpp_hresult_t hr = unknown->QueryInterface(Il2CppIUnknown::IID, reinterpret_cast<void**>(&identity));
-        IL2CPP_VM_RAISE_IF_FAILED(hr, true);
+        vm::Exception::RaiseIfFailed(hr, true);
         IL2CPP_ASSERT(identity);
 
         return identity;
@@ -75,8 +80,9 @@ namespace vm
             return fallbackClass;
 
         uint32_t classNameLength;
-        const Il2CppChar* classNamePtr = os::WindowsRuntime::GetHStringBuffer(className, &classNameLength);
-        std::string classNameUtf8 = utils::StringUtils::Utf16ToUtf8(classNamePtr, classNameLength);
+        auto classNamePtr = os::WindowsRuntime::GetHStringBuffer(className, &classNameLength);
+        vm::Exception::RaiseIfError(classNamePtr.GetError());
+        std::string classNameUtf8 = utils::StringUtils::Utf16ToUtf8(classNamePtr.Get(), classNameLength);
         os::WindowsRuntime::DeleteHString(className);
 
         Il2CppClass* rcwClass = MetadataCache::GetWindowsRuntimeClass(classNameUtf8.c_str());
@@ -176,7 +182,7 @@ namespace vm
 
         for (uint16_t i = 0; i < 2; i++)
         {
-            const MethodInfo* methodToInvoke;
+            const MethodInfo* methodToInvoke = NULL;
             const FieldInfo& field = keyValuePairGenericInstance->fields[i];
 
             // Figure out which getter to call
@@ -197,7 +203,7 @@ namespace vm
                 Exception::Raise(exception);
 
             // Set the field in our reboxed key value pair instance
-            if (Class::FromIl2CppType(field.type)->valuetype)
+            if (Class::FromIl2CppType(field.type)->byval_arg.valuetype)
             {
                 Field::SetValue(reboxed, &field, Object::Unbox(fieldValue));
             }
@@ -237,7 +243,7 @@ namespace vm
         for (uint16_t i = 0; i < uriMethodCount; i++)
         {
             const MethodInfo* method = systemUriClass->methods[i];
-            if (strcmp(method->name, ".ctor") == 0 && method->parameters_count == 1 && method->parameters[0].parameter_type->type == IL2CPP_TYPE_STRING)
+            if (strcmp(method->name, ".ctor") == 0 && method->parameters_count == 1 && method->parameters[0]->type == IL2CPP_TYPE_STRING)
             {
                 uriConstructor = method;
                 break;
@@ -333,7 +339,9 @@ namespace vm
         rcw->refCount = 1;
 
         // 5. Insert it into the cache
-        const bool inserted = s_RCWCache.insert(std::make_pair(identity, gc::GCHandle::NewWeakref(rcw, false))).second;
+        auto weakRef = gc::GCHandle::NewWeakref(rcw, false);
+        vm::Exception::RaiseIfError(weakRef.GetError());
+        const bool inserted = s_RCWCache.insert(std::make_pair(identity, weakRef.Get())).second;
         Assert(inserted);
 
         return rcw;
@@ -476,17 +484,16 @@ namespace vm
 
         if (targetInterface->generic_class != NULL)
         {
-            const Il2CppTypeDefinition* genericInterface = MetadataCache::GetTypeDefinitionFromIndex(targetInterface->generic_class->typeDefinitionIndex);
-            const Il2CppGenericContainer* genericContainer = MetadataCache::GetGenericContainerFromIndex(genericInterface->genericContainerIndex);
+            Il2CppMetadataGenericContainerHandle containerHandle = MetadataCache::GetGenericContainerFromGenericClass(targetInterface->image, targetInterface->generic_class);
 
-            if (Class::IsGenericClassAssignableFrom(targetInterface, queriedInterface, genericContainer))
+            if (Class::IsGenericClassAssignableFrom(targetInterface, queriedInterface, targetInterface->image, containerHandle))
                 return NULL;
 
             const Il2CppRuntimeInterfaceOffsetPair* interfaceOffsets = queriedInterface->interfaceOffsets;
             uint16_t interfaceOffsetsCount = queriedInterface->interface_offsets_count;
             for (uint16_t i = 0; i < interfaceOffsetsCount; i++)
             {
-                if (Class::IsGenericClassAssignableFrom(targetInterface, interfaceOffsets[i].interfaceType, genericContainer))
+                if (Class::IsGenericClassAssignableFrom(targetInterface, interfaceOffsets[i].interfaceType, targetInterface->image, containerHandle))
                 {
                     Il2CppMethodSlot slotWithOffset = interfaceOffsets[i].offset + slot;
                     if (slotWithOffset < vtableCount)

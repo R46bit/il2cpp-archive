@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if !IL2CPP_USE_GENERIC_MEMORY_MAPPED_FILE && IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !IL2CPP_USE_GENERIC_MEMORY_MAPPED_FILE && IL2CPP_TARGET_POSIX && !RUNTIME_TINY
 
 #include <sys/mman.h>
 #include <map>
@@ -235,11 +235,18 @@ namespace os
             NO_UNUSED_WARNING(result);
         }
 
-        FileHandle* handle = new FileHandle;
-        handle->fd = fd;
-        handle->doesNotOwnFd = !ownsFd;
-
-        return handle;
+        if (ownsFd)
+        {
+            FileHandle* handle = new FileHandle;
+            handle->fd = fd;
+            handle->doesNotOwnFd = !ownsFd;
+            return handle;
+        }
+        else
+        {
+            file->doesNotOwnFd = true;
+            return file;
+        }
     }
 
     MemoryMappedFile::MemoryMappedFileHandle MemoryMappedFile::View(FileHandle* mappedFileHandle, int64_t* length, int64_t offset, MemoryMappedFileAccess access, int64_t* actualOffset, MemoryMappedFileError* error)
@@ -316,12 +323,11 @@ namespace os
         bool result = true;
         if (!file->doesNotOwnFd)
         {
-            int error = close(file->fd);
+            int error = 0;
+            os::File::Close(file, &error);
             if (error != 0)
                 result = false;
         }
-
-        delete file;
 
         return result;
     }
@@ -338,6 +344,11 @@ namespace os
         IL2CPP_ASSERT(result != -1);
         NO_UNUSED_WARNING(result);
 #endif
+    }
+
+    bool MemoryMappedFile::OwnsDuplicatedFileHandle(FileHandle* file)
+    {
+        return !file->doesNotOwnFd;
     }
 }
 }

@@ -2,24 +2,12 @@
 
 #include "il2cpp-config.h"
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 
 #include <stdint.h>
 #include <stddef.h>
 #include "il2cpp-class-internals.h"
 #include "il2cpp-windowsruntime-types.h"
-
-#if defined(__cplusplus)
-extern "C"
-{
-#endif // __cplusplus
-// We cannot include il2cpp-api.h here because generated code contains il2cpp
-// api declarations with mismatching parameter declarations (char* vs const char*).
-// So we only declare il2cpp_gc_wbarrier_set_field here.
-IL2CPP_EXPORT void il2cpp_gc_wbarrier_set_field(Il2CppObject * obj, void **targetAddress, void *object);
-#if defined(__cplusplus)
-}
-#endif // __cplusplus
 
 typedef struct Il2CppClass Il2CppClass;
 typedef struct MethodInfo MethodInfo;
@@ -43,9 +31,20 @@ namespace il2cpp
 {
 namespace os
 {
-    class FastMutex;
     class Thread;
 }
+}
+
+namespace baselib
+{
+#if !IL2CPP_TINY || IL2CPP_TINY_FROM_IL2CPP_BUILDER
+    inline namespace il2cpp_baselib
+{
+#endif
+    class ReentrantLock;
+#if !IL2CPP_TINY || IL2CPP_TINY_FROM_IL2CPP_BUILDER
+}
+#endif
 }
 #endif //__cplusplus
 
@@ -113,6 +112,8 @@ static const size_t kIl2CppSizeOfArray = (offsetof(Il2CppArraySize, vector));
 static const size_t kIl2CppOffsetOfArrayBounds = (offsetof(Il2CppArray, bounds));
 static const size_t kIl2CppOffsetOfArrayLength = (offsetof(Il2CppArray, max_length));
 
+#define il2cpp_array_addr_with_size(arr, idx, size) ((((uint8_t*)(arr)) + kIl2CppSizeOfArray) + ((size_t)(size) * (idx)))
+
 
 // System.String
 typedef struct Il2CppString
@@ -128,15 +129,6 @@ typedef struct Il2CppString
 #pragma clang diagnostic pop
 #endif
 
-#define IL2CPP_OBJECT_SETREF(obj, fieldname, value) do {\
-        il2cpp_gc_wbarrier_set_field((Il2CppObject *)(obj), (void**)&(obj)->fieldname, (value));\
-    } while (0)
-
-/* This should be used if 's' can reside on the heap */
-#define IL2CPP_STRUCT_SETREF(s, field, value) do {\
-        il2cpp_gc_wbarrier_set_field((Il2CppObject *)(s), (void**)&(s)->field, (value));\
-    } while (0)
-
 typedef struct Il2CppReflectionType
 {
     Il2CppObject object;
@@ -149,7 +141,7 @@ typedef struct Il2CppReflectionType
 typedef struct Il2CppReflectionRuntimeType
 {
     Il2CppReflectionType type;
-    Il2CppObject *type_info;
+    Il2CppObject* type_info;
     Il2CppObject* genericCache;
     Il2CppObject* serializationCtor;
 } Il2CppReflectionRuntimeType;
@@ -255,16 +247,16 @@ typedef struct Il2CppPropertyInfo
 typedef struct Il2CppReflectionParameter
 {
     Il2CppObject object;
+    uint32_t AttrsImpl;
     Il2CppReflectionType *ClassImpl;
     Il2CppObject *DefaultValueImpl;
     Il2CppObject *MemberImpl;
     Il2CppString *NameImpl;
     int32_t PositionImpl;
-    uint32_t AttrsImpl;
-    Il2CppObject *MarshalAsImpl;
+    Il2CppObject* MarshalAs;
 } Il2CppReflectionParameter;
 
-// System.Reflection.Module
+// System.Reflection.RuntimeModule
 typedef struct Il2CppReflectionModule
 {
     Il2CppObject obj;
@@ -296,14 +288,14 @@ typedef struct Il2CppReflectionAssemblyName
     uint32_t contentType;
 } Il2CppReflectionAssemblyName;
 
-// System.Reflection.Assembly
+// System.RuntimeAssembly
 typedef struct Il2CppReflectionAssembly
 {
     Il2CppObject object;
     const Il2CppAssembly *assembly;
-    Il2CppObject *resolve_event_holder;
     /* CAS related */
     Il2CppObject *evidence; /* Evidence */
+    Il2CppObject *resolve_event_holder;
     Il2CppObject *minimum;  /* PermissionSet - for SecurityAction.RequestMinimum */
     Il2CppObject *optional; /* PermissionSet - for SecurityAction.RequestOptional */
     Il2CppObject *refuse;   /* PermissionSet - for SecurityAction.RequestRefuse */
@@ -337,6 +329,38 @@ typedef struct Il2CppReflectionPointer
     Il2CppReflectionType* type;
 } Il2CppReflectionPointer;
 
+typedef struct Il2CppThreadName
+{
+    Il2CppChar* chars;
+    int32_t unused;
+    int32_t length;
+} Il2CppThreadName;
+
+typedef struct
+{
+    uint32_t ref;
+    void (*destructor)(void* data);
+} Il2CppRefCount;
+
+/* Data owned by a MonoInternalThread that must live until both the finalizer
+ * for MonoInternalThread has run, and the underlying machine thread has
+ * detached.
+ *
+ * Normally a thread is first detached and then the InternalThread object is
+ * finalized and collected.  However during shutdown, when the root domain is
+ * finalized, all the InternalThread objects are finalized first and the
+ * machine threads are detached later.
+ */
+typedef struct
+{
+    Il2CppRefCount ref;
+#ifdef __cplusplus
+    baselib::ReentrantLock* synch_cs;
+#else
+    void* synch_cs;
+#endif
+} Il2CppLongLivedThreadData;
+
 // System.Threading.InternalThread
 typedef struct Il2CppInternalThread
 {
@@ -348,9 +372,7 @@ typedef struct Il2CppInternalThread
     void* handle;
 #endif //__cplusplus
     void* native_handle;
-    Il2CppArray* cached_culture_info;
-    Il2CppChar* name;
-    int name_len;
+    Il2CppThreadName name;
     uint32_t state;
     Il2CppObject* abort_exc;
     int abort_state_handle;
@@ -365,9 +387,9 @@ typedef struct Il2CppInternalThread
     void* appdomain_refs;
     int32_t interruption_requested;
 #ifdef __cplusplus
-    il2cpp::os::FastMutex* synch_cs;
+    Il2CppLongLivedThreadData *longlived;
 #else
-    void* synch_cs;
+    void* longlived;
 #endif //__cplusplus
     bool threadpool_thread;
     bool thread_interrupt_requested;
@@ -377,7 +399,7 @@ typedef struct Il2CppInternalThread
     int managed_id;
     uint32_t small_id;
     void* manage_callback;
-    void* interrupt_on_stop;
+
     intptr_t flags;
     void* thread_pinning_ref;
     void* abort_protected_block_count;
@@ -386,7 +408,7 @@ typedef struct Il2CppInternalThread
     void * suspended;
     int32_t self_suspended;
     size_t thread_state;
-    size_t unused2;
+    void* unused[3];  // same size as netcore
     void* last;
 } Il2CppInternalThread;
 
@@ -482,6 +504,7 @@ typedef struct Il2CppException
 {
     Il2CppObject object;
 #endif //__cplusplus
+#if !IL2CPP_TINY
     Il2CppString* className;
     Il2CppString* message;
     Il2CppObject* _data;
@@ -497,6 +520,18 @@ typedef struct Il2CppException
     Il2CppObject* safeSerializationManager;
     Il2CppArray* captured_traces;
     Il2CppArray* native_trace_ips;
+    int32_t caught_in_unmanaged;
+#else
+    Il2CppString* message;
+    union
+    {
+        // Stack trace is the field at this position,
+        // but we'll define inner_ex and hresult to reduce the number of defines we need in vm::Exception.cpp
+        Il2CppString* stack_trace;
+        Il2CppException* inner_ex;
+        il2cpp_hresult_t hresult;
+    };
+#endif
 } Il2CppException;
 
 // System.SystemException
@@ -528,24 +563,32 @@ typedef struct Il2CppDelegate
     /* The compiled code of the target method */
     Il2CppMethodPointer method_ptr;
     /* The invoke code */
-    InvokerMethod invoke_impl;
+    Il2CppMethodPointer invoke_impl;
     Il2CppObject *target;
-
-#if RUNTIME_MONO
-    const MonoMethod *method;
-#else
     const MethodInfo *method;
-#endif
 
+    // This is used in PlatformInvoke.cpp to store the native function pointer
+    // IMPORTANT: It is assumed to NULL otherwise!  See PlatformInvoke::IsFakeDelegateMethodMarshaledFromNativeCode
     void* delegate_trampoline;
 
+    // Used to store the mulicast_invoke_impl
     intptr_t extraArg;
 
-    /*
+    /* MONO:
      * If non-NULL, this points to a memory location which stores the address of
      * the compiled code of the method, or NULL if it is not yet compiled.
+     * uint8_t **method_code;
      */
-    uint8_t **method_code;
+    // IL2CPP: Points to the "this" method pointer we use when calling invoke_impl
+    // For closed delegates invoke_impl_this points to target and invoke_impl is method pointer so we just do a single indirect call
+    // For all other delegates invoke_impl_this is points to it's owning delegate an invoke_impl is a delegate invoke stub
+    // NOTE: This field is NOT VISIBLE to the GC because its not a managed field in the classlibs
+    //       Our usages are safe becuase we either pointer to ourself or whats stored in the target field
+    Il2CppObject* invoke_impl_this;
+
+    void* interp_method;
+    /* Interp method that is executed when invoking the delegate */
+    void* interp_invoke_impl;
     Il2CppReflectionMethod *method_info;
     Il2CppReflectionMethod *original_method_info;
     Il2CppObject *data;
@@ -554,6 +597,8 @@ typedef struct Il2CppDelegate
 #else
     void* method_ptr;
     Il2CppObject* m_target;
+    void* invoke_impl;
+    void* multicast_invoke_impl;
     void* m_ReversePInvokeWrapperPtr;
     bool m_IsDelegateOpen;
 #endif // !IL2CPP_TINY
@@ -606,9 +651,16 @@ struct Il2CppComObject : Il2CppObject
     // and gets decremented when Marshal.ReleaseComObject gets called. Fortunately, since we
     // live in a world of fairies and garbage collectors, we don't actually have to release it
     // manually in order for it to get cleaned up automatically in the future.
-    volatile int32_t refCount;
+    int32_t refCount;
 };
 #endif //__cplusplus
+
+// Fully Shared GenericTypes
+// Il2CppFullySharedGenericAny comes from a generic paramter - it can by any type
+// Il2CppFullySharedGenericStruct comes from a generic struct - e.g. struct MyStruct<T> {}.  We don't know it's size - it's a void*
+// Fully shared classes will inherit from System.Object
+typedef void* Il2CppFullySharedGenericAny;
+typedef void* Il2CppFullySharedGenericStruct;
 
 // System.AppDomain
 typedef struct Il2CppAppDomain
@@ -727,6 +779,33 @@ typedef struct Il2CppNumberFormatInfo
     bool validForParseAsNumber;
     bool validForParseAsCurrency;
 } Il2CppNumberFormatInfo;
+
+typedef struct NumberFormatEntryManaged
+{
+    int32_t currency_decimal_digits;
+    int32_t currency_decimal_separator;
+    int32_t currency_group_separator;
+    int32_t currency_group_sizes0;
+    int32_t currency_group_sizes1;
+    int32_t currency_negative_pattern;
+    int32_t currency_positive_pattern;
+    int32_t currency_symbol;
+    int32_t nan_symbol;
+    int32_t negative_infinity_symbol;
+    int32_t negative_sign;
+    int32_t number_decimal_digits;
+    int32_t number_decimal_separator;
+    int32_t number_group_separator;
+    int32_t number_group_sizes0;
+    int32_t number_group_sizes1;
+    int32_t number_negative_pattern;
+    int32_t per_mille_symbol;
+    int32_t percent_negative_pattern;
+    int32_t percent_positive_pattern;
+    int32_t percent_symbol;
+    int32_t positive_infinity_symbol;
+    int32_t positive_sign;
+} NumberFormatEntryManaged;
 
 typedef struct Il2CppCultureData
 {
@@ -902,28 +981,13 @@ typedef struct Il2CppAsyncCall
     Il2CppArray *out_args;
 } Il2CppAsyncCall;
 
-
-#if RUNTIME_MONO
-extern "C"
-{
-#include <mono/metadata/object.h>
-}
-#endif
-
 typedef struct Il2CppExceptionWrapper Il2CppExceptionWrapper;
 typedef struct Il2CppExceptionWrapper
 {
-#if RUNTIME_MONO
-    MonoException* ex;
-#ifdef __cplusplus
-    Il2CppExceptionWrapper(MonoException* ex) : ex(ex) {}
-#endif //__cplusplus
-#else
     Il2CppException* ex;
 #ifdef __cplusplus
     Il2CppExceptionWrapper(Il2CppException* ex) : ex(ex) {}
 #endif //__cplusplus
-#endif
 } Il2CppExceptionWrapper;
 
 typedef struct Il2CppIOAsyncResult
@@ -1082,4 +1146,10 @@ typedef union Il2CppSingle_float
     float f;
 } Il2CppSingle_float;
 
-#endif // IL2CPP_TINY
+// System.ByReference
+typedef struct Il2CppByReference
+{
+    intptr_t value;
+} Il2CppByReference;
+
+#endif // !RUNTIME_TINY

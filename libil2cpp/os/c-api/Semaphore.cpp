@@ -1,6 +1,6 @@
-#include "os/c-api/il2cpp-config-platforms.h"
+#include "il2cpp-config.h"
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 
 #include "os/c-api/Semaphore-c-api.h"
 #include "os/Semaphore.h"

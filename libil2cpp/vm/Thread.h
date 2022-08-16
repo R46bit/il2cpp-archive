@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include "il2cpp-config.h"
+#include "os/Thread.h"
 #include "utils/NonCopyable.h"
 
 struct MethodInfo;
@@ -31,7 +32,21 @@ namespace vm
         kThreadStateWaitSleepJoin = 0x00000020,
         kThreadStateSuspended = 0x00000040,
         kThreadStateAbortRequested = 0x00000080,
-        kThreadStateAborted = 0x00000100
+        kThreadStateAborted = 0x00000100,
+
+        // This enum is used with the ~ operator to clear values. to avoid undefined
+        // behavior in C++, the cleared state of each value should also be present
+        // in the enum.
+        kThreadStateRunningCleared = ~kThreadStateRunning,
+        kThreadStateStopRequestedCleared = ~kThreadStateStopRequested,
+        kThreadStateSuspendRequestedCleared = ~kThreadStateSuspendRequested,
+        kThreadStateBackgroundCleared = ~kThreadStateBackground,
+        kThreadStateUnstartedCleared = ~kThreadStateUnstarted,
+        kThreadStateStoppedCleared = ~kThreadStateStopped,
+        kThreadStateWaitSleepJoinCleared = ~kThreadStateWaitSleepJoin,
+        kThreadStateSuspendedCleared = ~kThreadStateSuspended,
+        kThreadStateAbortRequestedCleared = ~kThreadStateAbortRequested,
+        kThreadStateAbortedCleared = ~kThreadStateAborted,
     };
 
 
@@ -55,7 +70,7 @@ namespace vm
         static void Detach(Il2CppThread *thread);
         static void WalkFrameStack(Il2CppThread *thread, Il2CppFrameWalkFunc func, void *user_data);
         static Il2CppThread** GetAllAttachedThreads(size_t &size);
-        static void KillAllBackgroundThreadsAndWaitForForegroundThreads();
+        static void AbortAllThreads();
         static Il2CppThread* Main();
         static bool IsVmThread(Il2CppThread *thread);
         static uint64_t GetId(Il2CppThread *thread);
@@ -77,7 +92,7 @@ namespace vm
     public:
         // internal
         static void Initialize();
-        static void UnInitialize();
+        static void Uninitialize();
 
         static void AdjustStaticData();
         static int32_t AllocThreadStaticData(int32_t size);
@@ -89,12 +104,12 @@ namespace vm
         static void Register(Il2CppThread *thread);
         static void Unregister(Il2CppThread *thread);
 
-        static void Setup(Il2CppThread* thread);
+        static void SetupInternalManagedThread(Il2CppThread* thread, os::Thread* osThread);
 
         /// Initialize and register thread.
         /// NOTE: Must be called on thread!
-        static void Initialize(Il2CppThread *thread, Il2CppDomain* domain);
-        static void Uninitialize(Il2CppThread *thread);
+        static void InitializeManagedThread(Il2CppThread *thread, Il2CppDomain* domain);
+        static void UninitializeManagedThread(Il2CppThread *thread);
 
         static void SetMain(Il2CppThread* thread);
 

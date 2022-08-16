@@ -140,6 +140,7 @@ gboolean
 mono_threads_platform_in_critical_region (MonoNativeThreadId tid)
 {
 	g_assert(0 && "This function is not yet implemented for the Unity platform.");
+	return FALSE;
 }
 
 gboolean

@@ -7,12 +7,11 @@
 #include "utils/Environment.h"
 
 
-#if defined(RUNTIME_MONO)
-extern "C"
-{
-#include <mono/metadata/unity-utils.h>
-}
+#ifndef IL2CPP_DEFAULT_DATA_DIR_PATH
+#define IL2CPP_DEFAULT_DATA_DIR_PATH Data
 #endif
+
+#define IL2CPP_DEFAULT_DATA_DIR_PATH_STR MAKE_STRING(STRINGIZE, IL2CPP_DEFAULT_DATA_DIR_PATH)
 
 namespace il2cpp
 {
@@ -25,7 +24,6 @@ namespace utils
 
     static std::string s_DataDirFallback;
 
-#if !defined(RUNTIME_MONO)
     static std::string s_DataDir;
 
     void Runtime::SetDataDir(const char *path)
@@ -33,25 +31,12 @@ namespace utils
         s_DataDir = path;
     }
 
-#endif
-
     std::string Runtime::GetDataDir()
     {
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
-#if defined(RUNTIME_MONO)
-        // use explicit value if set
-        char* dataDirCS = mono_unity_get_data_dir();
-        if (dataDirCS)
-        {
-            std::string dataDir(dataDirCS, strlen(dataDirCS));
-            if (dataDir.size() > 0)
-                return dataDir;
-        }
-#else
+#if !RUNTIME_TINY
         // use explicit value if set
         if (s_DataDir.size() > 0)
             return s_DataDir;
-#endif
 
         std::string executablePath = os::Path::GetExecutablePath();
         if (!executablePath.empty())

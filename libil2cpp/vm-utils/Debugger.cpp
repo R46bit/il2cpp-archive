@@ -4,6 +4,7 @@
 
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
+#include "il2cpp-metadata.h"
 #include "Debugger.h"
 #include "os/Thread.h"
 #include "os/c-api/Allocator.h"
@@ -21,7 +22,6 @@
 #include "utils/StringViewUtils.h"
 #include "utils/Il2CppHashMap.h"
 #include "utils/HashUtils.h"
-
 #include "VmStringUtils.h"
 
 #include <deque>
@@ -51,6 +51,7 @@ struct MonoContext;
 extern "C"
 {
     void mono_debugger_agent_parse_options(const char *options);
+    void mono_debugger_agent_init_minimal();
     void mono_debugger_agent_init();
     void mono_debugger_run_debugger_thread_func(void* arg);
     void debugger_agent_single_step_from_context(MonoContext *ctx, Il2CppSequencePoint* sequencePoint);
@@ -86,6 +87,11 @@ namespace utils
     static bool s_IsDebuggerInitialized = false;
     static std::string s_AgentOptions;
 
+    static os::Mutex s_Il2CppMonoLoaderLock(false);
+    static uint64_t s_Il2CppMonoLoaderLockThreadId = 0;
+
+    static Il2CppMonoInterpCallbacks s_InterpCallbacks;
+
     typedef dynamic_array<Il2CppSequencePoint*> SequencePointList;
     typedef Il2CppHashMap<const MethodInfo*, SequencePointList*, il2cpp::utils::PointerHash<MethodInfo> > MethodToSequencePointsMap;
     static MethodToSequencePointsMap s_methodToSequencePoints;
@@ -104,6 +110,27 @@ namespace utils
 
     static MethodToSequencePointsMap::const_iterator GetMethodSequencePointIterator(const MethodInfo *method);
 
+    static void* FrameGetArg(Il2CppSequencePointExecutionContext* frame, int pos)
+    {
+        return frame->params[pos];
+    }
+
+    static void* FrameGetLocal(Il2CppSequencePointExecutionContext* frame, int pos)
+    {
+        return frame->locals[pos];
+    }
+
+    static void* FrameGetThis(Il2CppSequencePointExecutionContext* frame)
+    {
+        return *frame->thisArg;
+    }
+
+    static void InitializeInterpCallbacks()
+    {
+        s_InterpCallbacks.frame_get_arg = FrameGetArg;
+        s_InterpCallbacks.frame_get_local = FrameGetLocal;
+        s_InterpCallbacks.frame_get_this = FrameGetThis;
+    }
 
     void Debugger::RegisterMetadata(const Il2CppDebuggerMetadataRegistration *data)
     {
@@ -126,6 +153,7 @@ namespace utils
     static void InitializeMonoSoftDebugger(const char* options)
     {
 #if defined(RUNTIME_IL2CPP)
+        InitializeInterpCallbacks();
 
         os::SocketBridge::WaitForInitialization();
 
@@ -172,28 +200,29 @@ namespace utils
 
     void Debugger::InitializeTypeSourceFileMap()
     {
-        int lastTypeIndex = -1;
+        Il2CppClass* lastKlass = NULL;
         Il2CppClass *klass = NULL;
         FileNameList files;
 
         vm::AssemblyVector* assemblies = vm::Assembly::GetAllAssemblies();
         for (vm::AssemblyVector::const_iterator  iter = assemblies->begin(); iter != assemblies->end(); ++iter)
         {
-            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = vm::Assembly::GetImage(*iter)->codeGenModule->debuggerMetadata;
+            const Il2CppImage* image = vm::Assembly::GetImage(*iter);
+            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = image->codeGenModule->debuggerMetadata;
+            if (debuggerMetadata == NULL)
+                continue;
             for (int i = 0; i < debuggerMetadata->numTypeSourceFileEntries; ++i)
             {
                 Il2CppTypeSourceFilePair& pair = debuggerMetadata->typeSourceFiles[i];
                 const char *file = debuggerMetadata->sequencePointSourceFiles[pair.sourceFileIndex].file;
-                if (pair.klassIndex != lastTypeIndex)
-                {
-                    if (klass)
-                        s_typeSourceFiles->add(klass, files);
 
-                    klass = il2cpp::vm::MetadataCache::GetTypeInfoFromTypeDefinitionIndex(pair.klassIndex);
-                    lastTypeIndex = pair.klassIndex;
+                klass = il2cpp::vm::MetadataCache::GetTypeInfoFromTypeSourcePair(image, &pair);
+                if (klass != lastKlass && lastKlass != NULL)
+                {
+                    s_typeSourceFiles->add(lastKlass, files);
                     files.clear();
                 }
-
+                lastKlass = klass;
                 files.push_back(file);
             }
         }
@@ -227,9 +256,10 @@ namespace utils
 
     void Debugger::Init()
     {
+        bool debuggerIsInitialized = false;
         if (!s_AgentOptions.empty())
         {
-            TryInitializeDebugger(s_AgentOptions);
+            debuggerIsInitialized = TryInitializeDebugger(s_AgentOptions);
         }
         else
         {
@@ -237,10 +267,14 @@ namespace utils
             for (std::vector<UTF16String>::const_iterator arg = args.begin(); arg != args.end(); ++arg)
             {
                 std::string argument = StringUtils::Utf16ToUtf8(*arg);
-                if (TryInitializeDebugger(argument))
+                debuggerIsInitialized = TryInitializeDebugger(argument);
+                if (debuggerIsInitialized)
                     break;
             }
         }
+
+        if (!debuggerIsInitialized)
+            mono_debugger_agent_init_minimal();
     }
 
     static Debugger::OnBreakPointHitCallback s_BreakCallback;
@@ -254,6 +288,7 @@ namespace utils
     void Debugger::StartDebuggerThread()
     {
 #if defined(RUNTIME_IL2CPP)
+        // This thread is allocated here once and never deallocated.
         s_DebuggerThread = new os::Thread();
         s_DebuggerThread->Run(mono_debugger_run_debugger_thread_func, NULL);
 #else
@@ -343,6 +378,13 @@ namespace utils
         return thread == s_DebuggerThread;
     }
 
+    static void InitializeUnwindState(Il2CppThreadUnwindState* unwindState, uint32_t frameCapacity)
+    {
+        unwindState->frameCount = 0;
+        unwindState->frameCapacity = frameCapacity;
+        unwindState->executionContexts = (Il2CppSequencePointExecutionContext**)calloc(frameCapacity, sizeof(Il2CppSequencePointExecutionContext*));
+    }
+
     void Debugger::AllocateThreadLocalData()
     {
         Il2CppThreadUnwindState* unwindState;
@@ -350,10 +392,26 @@ namespace utils
         if (unwindState == NULL)
         {
             unwindState = (Il2CppThreadUnwindState*)calloc(1, sizeof(Il2CppThreadUnwindState));
-            unwindState->frameCapacity = 512;
-            unwindState->executionContexts = (Il2CppSequencePointExecutionContext**)calloc(512, sizeof(Il2CppSequencePointExecutionContext*));
+            InitializeUnwindState(unwindState, 512);
             s_ExecutionContexts.SetValue(unwindState);
         }
+    }
+
+    void Debugger::GrowFrameCapacity(Il2CppThreadUnwindState* unwindState)
+    {
+        // Create a new unwind state object to hold the large array of execution context pointers
+        Il2CppThreadUnwindState newUnwindState;
+        InitializeUnwindState(&newUnwindState, unwindState->frameCapacity * 2);
+
+        // Copy the existing execution context pointers into the new one
+        memcpy(newUnwindState.executionContexts, unwindState->executionContexts, unwindState->frameCapacity * sizeof(Il2CppSequencePointExecutionContext*));
+
+        // Free the existing one
+        free(unwindState->executionContexts);
+
+        // Set the new data into the existing one, so the client can keep its object reference
+        unwindState->frameCapacity = newUnwindState.frameCapacity;
+        unwindState->executionContexts = newUnwindState.executionContexts;
     }
 
     void Debugger::FreeThreadLocalData()
@@ -363,7 +421,11 @@ namespace utils
             Il2CppThreadUnwindState* unwindState;
             s_ExecutionContexts.GetValue(reinterpret_cast<void**>(&unwindState));
             s_ExecutionContexts.SetValue(NULL);
-            free(unwindState);
+            if (unwindState != NULL)
+            {
+                free(unwindState->executionContexts);
+                free(unwindState);
+            }
         }
     }
 
@@ -461,9 +523,9 @@ namespace utils
         return entry;
     }
 
-    Il2CppSequencePoint* Debugger::GetSequencePoint(Il2CppCatchPoint* cp)
+    Il2CppSequencePoint* Debugger::GetSequencePoint(const Il2CppImage* image, Il2CppCatchPoint* cp)
     {
-        const MethodInfo *method = GetCatchPointMethod(cp);
+        const MethodInfo *method = GetCatchPointMethod(image, cp);
 
         MethodToSequencePointsMap::const_iterator entry = GetMethodSequencePointIterator(method);
         if (entry == s_methodToSequencePoints.end())
@@ -543,11 +605,14 @@ namespace utils
         vm::AssemblyVector* assemblies = vm::Assembly::GetAllAssemblies();
         for (vm::AssemblyVector::const_iterator iter = assemblies->begin(); iter != assemblies->end(); ++iter)
         {
-            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = vm::Assembly::GetImage(*iter)->codeGenModule->debuggerMetadata;
+            const Il2CppImage* image = vm::Assembly::GetImage(*iter);
+            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = image->codeGenModule->debuggerMetadata;
+            if (debuggerMetadata == NULL)
+                continue;
             for (int i = 0; i < debuggerMetadata->numSequencePoints; ++i)
             {
                 Il2CppSequencePoint& seqPoint = debuggerMetadata->sequencePoints[i];
-                const MethodInfo *method = GetSequencePointMethod(&seqPoint);
+                const MethodInfo *method = GetSequencePointMethod(image, &seqPoint);
 
                 if (method != NULL)
                 {
@@ -585,11 +650,14 @@ namespace utils
         vm::AssemblyVector* assemblies = vm::Assembly::GetAllAssemblies();
         for (vm::AssemblyVector::const_iterator iter = assemblies->begin(); iter != assemblies->end(); ++iter)
         {
-            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = vm::Assembly::GetImage(*iter)->codeGenModule->debuggerMetadata;
+            const Il2CppImage* image = vm::Assembly::GetImage(*iter);
+            const Il2CppDebuggerMetadataRegistration* debuggerMetadata = image->codeGenModule->debuggerMetadata;
+            if (debuggerMetadata == NULL)
+                continue;
             for (int i = 0; i < debuggerMetadata->numCatchPoints; ++i)
             {
                 Il2CppCatchPoint& catchPoint = debuggerMetadata->catchPoints[i];
-                const MethodInfo *method = GetCatchPointMethod(&catchPoint);
+                const MethodInfo *method = GetCatchPointMethod(image, &catchPoint);
 
                 if (method != NULL)
                 {
@@ -657,20 +725,20 @@ namespace utils
             il2cpp::utils::Debugger::OnPausePointHit();
     }
 
-    const MethodInfo* Debugger::GetSequencePointMethod(Il2CppSequencePoint *seqPoint)
+    const MethodInfo* Debugger::GetSequencePointMethod(const Il2CppImage* image, Il2CppSequencePoint *seqPoint)
     {
         if (seqPoint == NULL)
             return NULL;
 
-        return il2cpp::vm::MetadataCache::GetMethodInfoFromMethodDefinitionIndex(seqPoint->methodDefinitionIndex);
+        return il2cpp::vm::MetadataCache::GetMethodInfoFromSequencePoint(image, seqPoint);
     }
 
-    const MethodInfo* Debugger::GetCatchPointMethod(Il2CppCatchPoint *catchPoint)
+    const MethodInfo* Debugger::GetCatchPointMethod(const Il2CppImage* image, Il2CppCatchPoint *catchPoint)
     {
         if (catchPoint == NULL)
             return NULL;
 
-        return il2cpp::vm::MetadataCache::GetMethodInfoFromMethodDefinitionIndex(catchPoint->methodDefinitionIndex);
+        return il2cpp::vm::MetadataCache::GetMethodInfoFromCatchPoint(image, catchPoint);
     }
 
     const char* Debugger::GetLocalName(const MethodInfo* method, int32_t index)
@@ -689,7 +757,6 @@ namespace utils
     {
         if (il2cpp::vm::Method::IsInflated(method))
             method = il2cpp::vm::MetadataCache::GetGenericMethodDefinition(method);
-        int methodIndex = il2cpp::vm::MetadataCache::GetIndexForMethodDefinition(method);
         const Il2CppDebuggerMetadataRegistration* debuggerMetadata = method->klass->image->codeGenModule->debuggerMetadata;
 
         Il2CppMethodExecutionContextInfoIndex *index = &debuggerMetadata->methodExecutionContextInfoIndexes[GetTokenRowId(method->token) - 1];
@@ -722,9 +789,42 @@ namespace utils
             {
                 Il2CppStackFrameInfo frameInfo = { 0 };
                 frameInfo.method = method;
+                if (unwindState->executionContexts[i]->currentSequencePoint != NULL)
+                {
+                    const Il2CppDebuggerMetadataRegistration* debuggerMetadata = method->klass->image->codeGenModule->debuggerMetadata;
+                    if (debuggerMetadata != NULL)
+                    {
+                        int32_t sourceFileIndex = unwindState->executionContexts[i]->currentSequencePoint->sourceFileIndex;
+                        frameInfo.filePath = debuggerMetadata->sequencePointSourceFiles[sourceFileIndex].file;
+                        frameInfo.sourceCodeLineNumber = unwindState->executionContexts[i]->currentSequencePoint->lineStart;
+                        frameInfo.ilOffset = unwindState->executionContexts[i]->currentSequencePoint->ilOffset;
+                    }
+                }
                 stackFrames->push_back(frameInfo);
             }
         }
+    }
+
+    void Debugger::AcquireLoaderLock()
+    {
+        s_Il2CppMonoLoaderLock.Lock();
+        s_Il2CppMonoLoaderLockThreadId = os::Thread::CurrentThreadId();
+    }
+
+    void Debugger::ReleaseLoaderLock()
+    {
+        s_Il2CppMonoLoaderLockThreadId = 0;
+        s_Il2CppMonoLoaderLock.Unlock();
+    }
+
+    bool Debugger::LoaderLockIsOwnedByThisThread()
+    {
+        return s_Il2CppMonoLoaderLockThreadId == os::Thread::CurrentThreadId();
+    }
+
+    Il2CppMonoInterpCallbacks* Debugger::GetInterpCallbacks()
+    {
+        return &s_InterpCallbacks;
     }
 }
 }

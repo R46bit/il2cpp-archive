@@ -78,6 +78,13 @@ typedef enum
 
 typedef enum
 {
+    IL2CPP_GC_MODE_DISABLED = 0,
+    IL2CPP_GC_MODE_ENABLED = 1,
+    IL2CPP_GC_MODE_MANUAL = 2
+} Il2CppGCMode;
+
+typedef enum
+{
     IL2CPP_STAT_NEW_OBJECT_COUNT,
     IL2CPP_STAT_INITIALIZED_CLASS_COUNT,
     //IL2CPP_STAT_GENERIC_VTABLE_COUNT,
@@ -105,6 +112,10 @@ typedef enum
 typedef struct Il2CppStackFrameInfo
 {
     const MethodInfo *method;
+    uintptr_t raw_ip;
+    int sourceCodeLineNumber;
+    int ilOffset;
+    const char* filePath;
 } Il2CppStackFrameInfo;
 
 typedef void(*Il2CppMethodPointer)();
@@ -161,7 +172,7 @@ typedef char Il2CppNativeChar;
 #endif
 
 typedef void (*il2cpp_register_object_callback)(Il2CppObject** arr, int size, void* userdata);
-typedef void (*il2cpp_WorldChangedCallback)();
+typedef void* (*il2cpp_liveness_reallocate_callback)(void* ptr, size_t size, void* userdata);
 typedef void (*Il2CppFrameWalkFunc) (const Il2CppStackFrameInfo *info, void *user_data);
 typedef void (*Il2CppProfileFunc) (Il2CppProfiler* prof);
 typedef void (*Il2CppProfileMethodFunc) (Il2CppProfiler* prof, const MethodInfo *method);

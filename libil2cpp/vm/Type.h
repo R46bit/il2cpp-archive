@@ -17,7 +17,6 @@
 struct FieldInfo;
 struct Il2CppType;
 struct Il2CppClass;
-struct Il2CppGenericParameter;
 struct Il2CppString;
 
 namespace il2cpp
@@ -227,22 +226,26 @@ namespace vm
         static bool IsReference(const Il2CppType* type);
         static bool IsStruct(const Il2CppType* type);
         static bool GenericInstIsValuetype(const Il2CppType* type);
+        static bool HasVariableRuntimeSizeWhenFullyShared(const Il2CppType* type);
 
         static bool IsEnum(const Il2CppType *type);
         static bool IsValueType(const Il2CppType *type);
-        static bool IsEmptyType(const Il2CppType *type);
+        static bool IsPointerType(const Il2CppType *type);
 
         static bool IsSystemDBNull(const Il2CppType *type);
         static bool IsSystemDateTime(const Il2CppType *type);
         static bool IsSystemDecimal(const Il2CppType *type);
 
         static Il2CppClass* GetClass(const Il2CppType *type);
-        static const Il2CppGenericParameter* GetGenericParameter(const Il2CppType *type);
+        static Il2CppMetadataGenericParameterHandle GetGenericParameterHandle(const Il2CppType *type);
+        static Il2CppGenericParameterInfo GetGenericParameterInfo(const Il2CppType *type);
         static const Il2CppType* GetGenericTypeDefintion(const Il2CppType* type);
 
-        static void ConstructDelegate(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr, const MethodInfo* method);
+        static void ConstructDelegate(Il2CppDelegate* delegate, Il2CppObject* target, const MethodInfo* method);
+        static void ConstructClosedDelegate(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr, const MethodInfo* method);
+        static void SetClosedDelegateInvokeMethod(Il2CppDelegate* delegate, Il2CppObject* target, Il2CppMethodPointer addr);
 
-        static Il2CppString* AppendAssemblyNameIfNecessary(Il2CppString* typeName, const char* assemblyName);
+        static Il2CppString* AppendAssemblyNameIfNecessary(Il2CppString* typeName, const MethodInfo* callingMethod);
     };
 } /* namespace vm */
 } /* namespace il2cpp */

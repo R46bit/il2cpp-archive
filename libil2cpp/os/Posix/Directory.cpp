@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if IL2CPP_TARGET_POSIX && !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if IL2CPP_TARGET_POSIX && !RUNTIME_TINY
 
 #include "os/Directory.h"
 #include "os/ErrorCodes.h"
@@ -10,7 +10,6 @@
 #include "utils/Memory.h"
 #include "utils/PathUtils.h"
 #include "utils/StringUtils.h"
-#include <assert.h>
 #include <errno.h>
 #include <dirent.h>
 #include <stdint.h>
@@ -228,6 +227,12 @@ namespace os
             return FileErrnoToErrorCode(errno);
 
         return os::kErrorCodeNoMoreFiles;
+    }
+
+    int32_t Directory::CloseOSFindHandleDirectly(intptr_t osHandle)
+    {
+        IL2CPP_ASSERT(0 && "This function should be called for Windows only.");
+        return 0;
     }
 }
 }

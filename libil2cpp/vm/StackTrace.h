@@ -9,14 +9,6 @@
 #include <string>
 #endif
 
-#if IL2CPP_ENABLE_NATIVE_STACKTRACES
-struct MethodDefinitionKey
-{
-    Il2CppMethodPointer method;
-    MethodIndex methodIndex;
-};
-#endif
-
 namespace il2cpp
 {
 namespace vm
@@ -30,7 +22,7 @@ namespace vm
         static void CleanupStackTracesForCurrentThread();
 
 #if IL2CPP_TINY_DEBUGGER
-        static std::string GetStackTrace();
+        static const char* GetStackTrace();
 #endif
 
         // Current thread functions

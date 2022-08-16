@@ -7,6 +7,9 @@
 #include "utils/dynamic_array.h"
 #include "utils/Memory.h"
 
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
+
 namespace il2cpp
 {
 namespace os
@@ -34,7 +37,7 @@ namespace os
         int64_t size;
     };
 
-    static os::FastMutex s_Mutex;
+    static baselib::ReentrantLock s_Mutex;
     static il2cpp::utils::dynamic_array<MemoryFileData*> s_MemoryFiles;
     static il2cpp::utils::dynamic_array<void*> s_MemoryFileViews;
 
@@ -207,6 +210,11 @@ namespace os
 
     void MemoryMappedFile::ConfigureHandleInheritability(FileHandle* file, bool inheritability)
     {
+    }
+
+    bool MemoryMappedFile::OwnsDuplicatedFileHandle(FileHandle* file)
+    {
+        return true;
     }
 }
 }

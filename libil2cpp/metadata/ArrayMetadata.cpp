@@ -5,6 +5,7 @@
 #include "vm/GenericClass.h"
 #include "vm/Image.h"
 #include "vm/MetadataLock.h"
+#include "vm/Method.h"
 #include "vm/Type.h"
 #include "metadata/ArrayMetadata.h"
 #include "metadata/GenericMetadata.h"
@@ -65,15 +66,13 @@ namespace metadata
         method->flags = METHOD_ATTRIBUTE_PUBLIC;
         method->iflags = METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL;
         method->name = name;
-        method->slot = -1;
+        method->slot = kInvalidIl2CppMethodSlot;
         method->return_type = returnType;
         method->parameters_count = parameterCount;
-        ParameterInfo* parameters = (ParameterInfo*)MetadataCalloc(parameterCount, sizeof(ParameterInfo));
+        const Il2CppType** parameters = (const Il2CppType**)MetadataCalloc(parameterCount, sizeof(Il2CppType*));
         for (uint8_t i = 0; i < parameterCount; i++)
         {
-            parameters[i].position = i;
-            parameters[i].parameter_type = parameterTypes[i];
-            parameters[i].name = NULL;
+            parameters[i] = parameterTypes[i];
         }
         method->parameters = parameters;
 
@@ -93,7 +92,7 @@ namespace metadata
 
     struct GenericArrayMethod
     {
-        std::string name;
+        const char* name;
         const MethodInfo* method;
         const MethodInfo* interfaceMethodDefinition;
     };
@@ -153,11 +152,10 @@ namespace metadata
 
     static void CollectImplicitArrayInterfacesFromElementClass(Il2CppClass* elementClass, ::std::vector<Il2CppClass*>& interfaces)
     {
-#if !IL2CPP_TINY
         while (elementClass != NULL)
         {
             interfaces.push_back(elementClass);
-            if (!elementClass->valuetype && elementClass != il2cpp_defaults.value_type_class && elementClass != il2cpp_defaults.enum_class)
+            if (!elementClass->byval_arg.valuetype && elementClass != il2cpp_defaults.value_type_class && elementClass != il2cpp_defaults.enum_class)
             {
                 void* iter = NULL;
                 while (Il2CppClass* itf = Class::GetInterfaces(elementClass, &iter))
@@ -171,23 +169,21 @@ namespace metadata
 
                 for (::std::vector<Il2CppClass*>::iterator iter = elementInterfaces.begin(); iter != elementInterfaces.end(); ++iter)
                 {
-                    Il2CppTypeVector genericArguments;
-                    genericArguments.push_back(&(*iter)->byval_arg);
+                    const Il2CppType* genericArgument = &(*iter)->byval_arg;
 
-                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, genericArguments));
-                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, genericArguments));
-                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, genericArguments));
+                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, &genericArgument, 1));
+                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, &genericArgument, 1));
+                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, &genericArgument, 1));
 
-                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, genericArguments));
-                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, genericArguments));
+                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, &genericArgument, 1));
+                    interfaces.push_back(Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, &genericArgument, 1));
                 }
             }
 
             elementClass = Class::GetParent(elementClass);
-            if (elementClass != NULL && (elementClass->valuetype || elementClass == il2cpp_defaults.value_type_class || elementClass == il2cpp_defaults.enum_class))
+            if (elementClass != NULL && (elementClass->byval_arg.valuetype || elementClass == il2cpp_defaults.value_type_class || elementClass == il2cpp_defaults.enum_class))
                 break;
         }
-#endif
     }
 
     static void CollectImplicitArrayInterfaces(Il2CppClass* arrayClass, ::std::vector<Il2CppClass*>& interfaces)
@@ -245,6 +241,9 @@ namespace metadata
                 methodName = method->name + 15;
                 name = StringUtils::Printf("System.Collections.Generic.IList`1.%s", method->name + 15);
             }
+
+            Class::Init(implementingInterface);
+
             const MethodInfo* matchingInterfacesMethod = NULL;
             for (int methodIndex = 0; methodIndex < implementingInterface->method_count; methodIndex++)
             {
@@ -255,7 +254,7 @@ namespace metadata
 
             if (matchingInterfacesMethod != NULL)
             {
-                GenericArrayMethod generiArrayMethod = { name, method, matchingInterfacesMethod };
+                GenericArrayMethod generiArrayMethod = { StringUtils::StringDuplicate(name.c_str()), method, matchingInterfacesMethod };
                 genericArrayMethods.push_back(generiArrayMethod);
             }
         }
@@ -271,28 +270,24 @@ namespace metadata
 
     static MethodInfo* ConstructGenericArrayMethod(const GenericArrayMethod& genericArrayMethod, Il2CppClass* klass, Il2CppGenericContext* context)
     {
-        MethodInfo* inflatedMethod = (MethodInfo*)MetadataCalloc(1, sizeof(MethodInfo));
-        inflatedMethod->name = StringUtils::StringDuplicate(genericArrayMethod.name.c_str());
-        inflatedMethod->klass = klass;
-
-        const MethodInfo* methodToCopyDataFrom = genericArrayMethod.method;
+        MethodInfo* inflatedMethod;
         if (genericArrayMethod.method->is_generic)
         {
-            const Il2CppGenericMethod* genericMethod = MetadataCache::GetGenericMethod(genericArrayMethod.method, context->class_inst, context->method_inst);
-            methodToCopyDataFrom = GenericMethod::GetMethod(genericMethod);
-
-            inflatedMethod->is_inflated = true;
-            inflatedMethod->genericMethod = genericMethod;
-            inflatedMethod->rgctx_data = methodToCopyDataFrom->rgctx_data;
+            inflatedMethod = GenericMethod::AllocateNewMethodInfo(genericArrayMethod.method, context->class_inst, context->method_inst);
+        }
+        else
+        {
+            inflatedMethod = (MethodInfo*)MetadataCalloc(1, sizeof(MethodInfo));
+            memcpy(inflatedMethod, genericArrayMethod.method, sizeof(MethodInfo));
         }
 
-        inflatedMethod->slot = methodToCopyDataFrom->slot;
-        inflatedMethod->parameters_count = methodToCopyDataFrom->parameters_count;
-        inflatedMethod->parameters = methodToCopyDataFrom->parameters;
-        inflatedMethod->return_type = methodToCopyDataFrom->return_type;
+        inflatedMethod->name = genericArrayMethod.name;
 
-        inflatedMethod->methodPointer = methodToCopyDataFrom->methodPointer;
-        inflatedMethod->invoker_method = methodToCopyDataFrom->invoker_method;
+        // The array methods are owned by the specific array instance, but they do not exist in metadata
+        // Ensure that the metadata token is zero (and not copied from the method definition) so any
+        // metadata lookup (e.g. custom attributes) will not find anything
+        inflatedMethod->klass = klass;
+        inflatedMethod->token = 0;
 
         return inflatedMethod;
     }
@@ -308,9 +303,7 @@ namespace metadata
             Il2CppClass* interfaceDefinition = GenericClass::GetTypeDefinition(interfaceType->generic_class);
 
             Il2CppGenericContext context = { 0 };
-            Il2CppTypeVector types;
-            types.push_back(interfaceType->generic_class->context.class_inst->type_argv[0]);
-            context.method_inst = MetadataCache::GetGenericInst(types);
+            context.method_inst = MetadataCache::GetGenericInst(&interfaceType->generic_class->context.class_inst->type_argv[0], 1);
 
             for (GenericArrayMethods::const_iterator iter = genericArrayMethods.begin(); iter != genericArrayMethods.end(); ++iter)
             {
@@ -322,7 +315,7 @@ namespace metadata
 
                 size_t vtableIndex = klass->interfaceOffsets[i].offset + iter->interfaceMethodDefinition->slot;
                 klass->vtable[vtableIndex].method = arrayMethod;
-                klass->vtable[vtableIndex].methodPtr = arrayMethod->methodPointer;
+                klass->vtable[vtableIndex].methodPtr = il2cpp::vm::Method::GetVirtualCallMethodPointer(arrayMethod);
             }
         }
     }
@@ -353,26 +346,25 @@ namespace metadata
         int32_t vtableSlot = arrayVTableSlot;
         for (::std::vector<Il2CppClass*>::iterator iter = interfaces.begin(); iter != interfaces.end(); iter++, index += kImplicitArrayInterfaceCount)
         {
-            Il2CppTypeVector genericArguments;
-            genericArguments.push_back(&(*iter)->byval_arg);
+            const Il2CppType* genericArgument = &(*iter)->byval_arg;
 
-            newInterfaceOffsets[index].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, genericArguments);
+            newInterfaceOffsets[index].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, &genericArgument, 1);
             newInterfaceOffsets[index].offset = vtableSlot;
             vtableSlot += newInterfaceOffsets[index].interfaceType->method_count;
 
-            newInterfaceOffsets[index + 1].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, genericArguments);
+            newInterfaceOffsets[index + 1].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, &genericArgument, 1);
             newInterfaceOffsets[index + 1].offset = vtableSlot;
             vtableSlot += newInterfaceOffsets[index + 1].interfaceType->method_count;
 
-            newInterfaceOffsets[index + 2].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, genericArguments);
+            newInterfaceOffsets[index + 2].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, &genericArgument, 1);
             newInterfaceOffsets[index + 2].offset = vtableSlot;
             vtableSlot += newInterfaceOffsets[index + 2].interfaceType->method_count;
 
-            newInterfaceOffsets[index + 3].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, genericArguments);
+            newInterfaceOffsets[index + 3].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, &genericArgument, 1);
             newInterfaceOffsets[index + 3].offset = vtableSlot;
             vtableSlot += newInterfaceOffsets[index + 3].interfaceType->method_count;
 
-            newInterfaceOffsets[index + 4].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, genericArguments);
+            newInterfaceOffsets[index + 4].interfaceType = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, &genericArgument, 1);
             newInterfaceOffsets[index + 4].offset = vtableSlot;
             vtableSlot += newInterfaceOffsets[index + 4].interfaceType->method_count;
         }
@@ -419,20 +411,19 @@ namespace metadata
         {
             IL2CPP_ASSERT(klass->implementedInterfaces == NULL);
 
-            Il2CppTypeVector genericArguments;
-            genericArguments.push_back(&klass->element_class->byval_arg);
+            const Il2CppType* genericArguments = &klass->element_class->byval_arg;
 
             IL2CPP_ASSERT(klass->interfaces_count == kImplicitArrayInterfaceCount);
             klass->implementedInterfaces = (Il2CppClass**)MetadataMalloc(klass->interfaces_count * sizeof(Il2CppClass*));
-            klass->implementedInterfaces[0] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, genericArguments);
+            klass->implementedInterfaces[0] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ilist_class, &genericArguments, 1);
             IL2CPP_ASSERT(klass->implementedInterfaces[0]);
-            klass->implementedInterfaces[1] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, genericArguments);
+            klass->implementedInterfaces[1] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_icollection_class, &genericArguments, 1);
             IL2CPP_ASSERT(klass->implementedInterfaces[1]);
-            klass->implementedInterfaces[2] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, genericArguments);
+            klass->implementedInterfaces[2] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ienumerable_class, &genericArguments, 1);
             IL2CPP_ASSERT(klass->implementedInterfaces[2]);
-            klass->implementedInterfaces[3] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, genericArguments);
+            klass->implementedInterfaces[3] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlylist_class, &genericArguments, 1);
             IL2CPP_ASSERT(klass->implementedInterfaces[3]);
-            klass->implementedInterfaces[4] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, genericArguments);
+            klass->implementedInterfaces[4] = Class::GetInflatedGenericInstanceClass(il2cpp_defaults.generic_ireadonlycollection_class, &genericArguments, 1);
             IL2CPP_ASSERT(klass->implementedInterfaces[4]);
         }
     }
@@ -443,9 +434,7 @@ namespace metadata
         IL2CPP_ASSERT(klass->element_class->initialized);
 
         SetupCastClass(klass);
-#if !IL2CPP_TINY
         SetupArrayVTableAndInterfaceOffsets(klass);
-#endif
         SetupArrayMethods(klass);
     }
 
@@ -481,34 +470,53 @@ namespace metadata
         }
     };
 
-    typedef Il2CppHashMap<Il2CppClass*, Il2CppClass*, SZArrayClassHash, SZArrayClassCompare> SZArrayClassMap;
-    typedef Il2CppHashMap<std::pair<Il2CppClass*, uint32_t>, Il2CppClass*, ArrayClassHash, ArrayClassCompare> ArrayClassMap;
+    typedef Il2CppReaderWriterLockedHashMap<Il2CppClass*, Il2CppClass*, SZArrayClassHash, SZArrayClassCompare> SZArrayClassMap;
+    typedef Il2CppReaderWriterLockedHashMap<std::pair<Il2CppClass*, uint32_t>, Il2CppClass*, ArrayClassHash, ArrayClassCompare> ArrayClassMap;
 
     SZArrayClassMap s_SZArrayClassMap;
     ArrayClassMap s_ArrayClassMap;
 
+    void ArrayMetadata::Clear()
+    {
+        s_SZArrayClassMap.Clear();
+        s_ArrayClassMap.Clear();
+    }
+
+    static Il2CppClass* FindBoundedArrayClass(Il2CppClass* elementClass, uint32_t rank, bool bounded)
+    {
+        Il2CppClass* arrayClass = NULL;
+        if (rank > 1 || bounded)
+        {
+            if (s_ArrayClassMap.TryGet(std::make_pair(elementClass, rank), &arrayClass))
+                return arrayClass;
+        }
+        else
+        {
+            if (s_SZArrayClassMap.TryGet(elementClass, &arrayClass))
+                return arrayClass;
+        }
+
+        return NULL;
+    }
+
     Il2CppClass* ArrayMetadata::GetBoundedArrayClass(Il2CppClass* elementClass, uint32_t rank, bool bounded)
     {
-        FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
-        IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(ArrayMetadata::GetBoundedArrayClass, "Use more granular lock for looking up arrays, but then handle race between lookup, construction, and caching");
-
         IL2CPP_ASSERT(rank <= 255);
 
         if (rank > 1)
             bounded = false;
 
-        if (rank > 1 || bounded)
-        {
-            ArrayClassMap::const_iterator iter = s_ArrayClassMap.find(std::make_pair(elementClass, rank));
-            if (iter != s_ArrayClassMap.end())
-                return iter->second;
-        }
-        else
-        {
-            SZArrayClassMap::const_iterator iter = s_SZArrayClassMap.find(elementClass);
-            if (iter != s_SZArrayClassMap.end())
-                return iter->second;
-        }
+        // Check for a cached array class using the reader lock only
+        Il2CppClass* cachedArrayClass = FindBoundedArrayClass(elementClass, rank, bounded);
+        if (cachedArrayClass != NULL)
+            return cachedArrayClass;
+
+        FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
+
+        // Check if the array class was created while we were waiting for the g_MetadataLock
+        cachedArrayClass = FindBoundedArrayClass(elementClass, rank, bounded);
+        if (cachedArrayClass != NULL)
+            return cachedArrayClass;
 
         Il2CppClass* arrayClass = il2cpp_defaults.array_class;
         Class::Init(arrayClass);
@@ -519,15 +527,9 @@ namespace metadata
         if (rank <= 1 && !bounded)
             CollectImplicitArrayInterfacesFromElementClass(elementClass, interfaces);
 
-#if IL2CPP_TINY
-        size_t slots = arrayClass->vtable_count;
-#else
         size_t slots = arrayClass->vtable_count + interfaces.size() * (il2cpp_defaults.generic_ilist_class->method_count + il2cpp_defaults.generic_icollection_class->method_count + il2cpp_defaults.generic_ienumerable_class->method_count);
-#endif
 
-#if !IL2CPP_TINY
         slots += interfaces.size() * (il2cpp_defaults.generic_ireadonlylist_class->method_count + il2cpp_defaults.generic_ireadonlycollection_class->method_count);
-#endif
 
         Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass) + (slots * sizeof(VirtualInvokeData)));
         klass->klass = klass;
@@ -542,7 +544,6 @@ namespace metadata
         klass->rank = rank;
 
         klass->instance_size = Class::GetInstanceSize(arrayClass);
-        klass->size_inited = true;
         klass->vtable_count = static_cast<uint16_t>(slots);
 
         // need this before we access the size or has_references
@@ -552,6 +553,8 @@ namespace metadata
         klass->native_size = klass->thread_static_fields_offset = -1;
 
         klass->has_references = Type::IsReference(&elementClass->byval_arg) || elementClass->has_references;
+
+        klass->size_inited = true; // set only after instance_size and has_references are set
 
         klass->element_class = elementClass;
 
@@ -583,10 +586,16 @@ namespace metadata
 
         klass->interopData = MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
+        // Insert the new array class while still holding the g_MetadataLock
+        // This ensures that the class is only added once
+        // And WalkSZArrays and WalkArrays (see below) only take the g_MetadataLock and assume that the maps won't be changed
+        // It's not safe to take the reader/writer lock there because those locks aren't re-entrant and those methods take
+        // call backs that call arbitrary code
+
         if (rank > 1 || bounded)
-            s_ArrayClassMap.insert(std::make_pair(ArrayClassMap::key_type(std::make_pair(klass->element_class, klass->rank)), klass));
+            s_ArrayClassMap.Add(ArrayClassMap::key_type(std::make_pair(klass->element_class, klass->rank)), klass);
         else
-            s_SZArrayClassMap.insert(std::make_pair(klass->element_class, klass));
+            s_SZArrayClassMap.Add(klass->element_class, klass);
 
         return klass;
     }
@@ -595,7 +604,7 @@ namespace metadata
     {
         FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
 
-        for (SZArrayClassMap::iterator it = s_SZArrayClassMap.begin(); it != s_SZArrayClassMap.end(); it++)
+        for (SZArrayClassMap::iterator it = s_SZArrayClassMap.UnlockedBegin(); it != s_SZArrayClassMap.UnlockedEnd(); it++)
         {
             callback(it->second, context);
         }
@@ -605,7 +614,7 @@ namespace metadata
     {
         FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
 
-        for (ArrayClassMap::iterator it = s_ArrayClassMap.begin(); it != s_ArrayClassMap.end(); it++)
+        for (ArrayClassMap::iterator it = s_ArrayClassMap.UnlockedBegin(); it != s_ArrayClassMap.UnlockedEnd(); it++)
         {
             callback(it->second, context);
         }

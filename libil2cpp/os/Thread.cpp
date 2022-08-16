@@ -17,6 +17,9 @@
 
 #include "utils/dynamic_array.h"
 
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
+
 #include <limits>
 
 namespace il2cpp
@@ -30,7 +33,7 @@ namespace os
     // It is thread local for thread safety
     static ThreadLocalValue s_IsCleaningUpThreads;
 
-    static FastMutex s_AliveThreadsMutex;
+    static baselib::ReentrantLock s_AliveThreadsMutex;
     static il2cpp::utils::dynamic_array<Thread*> s_AliveThreads;
 
     int64_t Thread::s_DefaultAffinityMask = kThreadAffinityAll;
@@ -61,6 +64,7 @@ namespace os
     Thread::Thread(ThreadImpl* thread)
         : m_Thread(thread)
         , m_State(kThreadRunning)
+        , m_ThreadExitedEvent(true) // Manual reset event
         , m_CleanupFunc(NULL)
         , m_CleanupFuncArg(NULL)
     {
@@ -96,18 +100,38 @@ namespace os
 
     void Thread::Shutdown()
     {
-        Thread* thread = GetCurrentThread();
-        thread->SetApartment(kApartmentStateUnknown);
+        Thread* currentThread = GetCurrentThread();
+        currentThread->SetApartment(kApartmentStateUnknown);
 
         SetIsCleaningUpThreads(true);
 
         FastAutoLock lock(&s_AliveThreadsMutex);
         size_t count = s_AliveThreads.size();
         for (size_t i = 0; i < count; i++)
-            delete s_AliveThreads[i];
+        {
+            // If this is not the current thread, wait a bit for it to exit. This will avoid an
+            // infinite wait on shutdown, but it should give the thread enough time to complete its
+            // use of the os::Thread object before we delete it. Note that we don't call Join here,
+            // as we want to explicitly do a non-interruptable wait because we are pretty late in
+            // the shutdown process. The VM thread code should have already caused any running
+            // threads to get a thread abort exception, meaning that any running OS threads will
+            // be exiting soon, with no need to check for APCs.
+            if (s_AliveThreads[i] != currentThread)
+            {
+                s_AliveThreads[i]->m_ThreadExitedEvent.Wait(10, false);
+                delete s_AliveThreads[i];
+            }
+        }
+
+        // Wait to delete the current thread last, as waiting on an event may need to access the current thread
+        delete currentThread;
 
         s_AliveThreads.clear();
+
         SetIsCleaningUpThreads(false);
+#if IL2CPP_ENABLE_RELOAD
+        s_CurrentThread.SetValue(NULL);
+#endif
     }
 
     Thread::ThreadId Thread::Id()
@@ -290,6 +314,8 @@ namespace os
         if (thread)
             return thread;
 
+        // The os::Thread object is deallocated in the InternalThread::Thread_free_internal icall, which
+        // is called from the managed thread finalizer.
         thread = new Thread(ThreadImpl::CreateForCurrentThread());
         s_CurrentThread.SetValue(thread);
 

@@ -1,6 +1,6 @@
 #include "os/c-api/il2cpp-config-platforms.h"
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 
 #include "os/Process.h"
 #include "os/c-api/Process-c-api.h"
@@ -17,7 +17,7 @@ extern "C"
 
     UnityPalProcessHandle* UnityPalGetProcess(int processId)
     {
-        return il2cpp::os::Process::GetProcess(processId);
+        return il2cpp::os::Process::GetProcess(processId).Get();
     }
 
     void UnityPalFreeProcess(UnityPalProcessHandle* handle)
@@ -27,7 +27,7 @@ extern "C"
 
     const char* UnityPalGetProcessName(UnityPalProcessHandle* handle)
     {
-        return Allocator::CopyToAllocatedStringBuffer(il2cpp::os::Process::GetProcessName(handle));
+        return Allocator::CopyToAllocatedStringBuffer(il2cpp::os::Process::GetProcessName(handle).Get());
     }
 }
 

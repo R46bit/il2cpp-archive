@@ -1,6 +1,5 @@
 #include "il2cpp-config.h"
 #include "il2cpp-object-internals.h"
-#include "il2cpp-vm-support.h"
 #include "GarbageCollector.h"
 #include "os/Event.h"
 #include "os/Mutex.h"
@@ -9,7 +8,10 @@
 #include "utils/Il2CppHashMap.h"
 #include "utils/HashUtils.h"
 
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#include "Baselib.h"
+#include "Cpp/ReentrantLock.h"
+
+#if !RUNTIME_TINY
 #include "vm/CCW.h"
 #include "vm/Class.h"
 #include "vm/Domain.h"
@@ -20,13 +22,16 @@
 #endif
 
 using namespace il2cpp::os;
+
+#if !RUNTIME_TINY
 using namespace il2cpp::vm;
+#endif
 
 namespace il2cpp
 {
 namespace gc
 {
-#if !IL2CPP_TINY_WITHOUT_DEBUGGER
+#if !RUNTIME_TINY
 // So COM Callable Wrapper can be created for any kind of managed object,
 // whether it has finalizer or not. If it doesn't then it's an easy case:
 // when creating the CCW, we just register our cleanup method to be the
@@ -73,7 +78,7 @@ namespace gc
 
     typedef Il2CppHashMap<Il2CppObject*, CachedCCW, utils::PointerHash<Il2CppObject> > CCWCache;
 
-    static FastMutex s_CCWCacheMutex;
+    static baselib::ReentrantLock s_CCWCacheMutex;
     static CCWCache s_CCWCache;
 
 #if IL2CPP_SUPPORT_THREADS
@@ -136,6 +141,8 @@ namespace gc
         s_FinalizerThread->Join();
         delete s_FinalizerThread;
         s_FinalizerThread = NULL;
+        s_StopFinalizer = false;
+        s_FinalizerThreadObject = NULL;
 #endif
     }
 
@@ -310,11 +317,11 @@ namespace gc
 
         Il2CppIUnknown* result;
         il2cpp_hresult_t hr = comCallableWrapper->QueryInterface(iid, reinterpret_cast<void**>(&result));
-        IL2CPP_VM_RAISE_IF_FAILED(hr, true);
+        vm::Exception::RaiseIfFailed(hr, true);
         return result;
     }
 
-#endif // !IL2CPP_TINY_WITHOUT_DEBUGGER
+#endif // !RUNTIME_TINY
 
     int32_t GarbageCollector::GetGeneration(void* addr)
     {

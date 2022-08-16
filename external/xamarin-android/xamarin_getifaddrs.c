@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <errno.h>
-#if !defined(WIN32) && !defined(SN_TARGET_ORBIS) && !defined(SN_TARGET_PROSPERO) && !defined(SN_TARGET_PSP2) && !defined(NN_COMPILER_RVCT)
+#if !defined(WIN32) && !defined(SN_TARGET_ORBIS) && !defined(SN_TARGET_PSP2) && !defined(NN_COMPILER_RVCT)
 #include <dlfcn.h>
 #endif
 #include <limits.h>

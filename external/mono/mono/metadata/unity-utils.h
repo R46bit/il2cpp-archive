@@ -160,7 +160,7 @@ MONO_API int mono_unity_gc_is_disabled();
 MonoAssembly* mono_unity_assembly_get_mscorlib();
 MonoImage* mono_unity_image_get_mscorlib();
 MonoClass* mono_unity_generic_container_get_parameter_class(MonoGenericContainer* generic_container, gint index);
-MonoString* mono_unity_string_append_assembly_name_if_necessary(MonoString* typeName, const char* assemblyName);
+MonoString* mono_unity_string_append_assembly_name_if_necessary(MonoString* typeName, MonoMethod* callingMethod);
 void mono_unity_memory_barrier();
 MonoException* mono_unity_thread_check_exception();
 MonoObject* mono_unity_delegate_get_target(MonoDelegate *delegate);
